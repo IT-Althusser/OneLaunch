@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+build/
+
+# 环境变量（API Key 禁止入库：MODEL_ROUTER_API_KEY）
+.env
+.env.*
+
+# 日志与临时文件
+*.log
+.tmp/
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
