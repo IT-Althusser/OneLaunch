@@ -1,0 +1,20 @@
+{
+  "name": "onelaunch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OneLaunch · 一键出海 — 跨境 AI 商品图片生成工作台（场景一：AI 智能上新）",
+  "workspaces": [
+    "apps/web",
+    "apps/server"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:server": "npm run dev --workspace apps/server",
+    "build": "npm run build --workspaces",
+    "start:server": "npm run start --workspace apps/server"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  }
+}
