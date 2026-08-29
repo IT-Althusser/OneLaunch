@@ -20,20 +20,19 @@
 ### 2. API 约束（必须使用）
 
 - 算力平台：**阿里云百炼**，通过 **Model Router API** 一站式调用模型（调用重点见【附录 A】，完整 126 模型清单与接口细节见同目录 `ModelRouter_API.docx`）。
-- Base URL：`https://model-router.edu-aliyun.com/v1`
+- Base URL：`https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`（Token Plan 专属）
 - 认证方式：`Authorization: Bearer <your-api-key>`（API Key 算力审核通过后发放；代码中走环境变量 `MODEL_ROUTER_API_KEY`，禁止硬编码）
 - 请求头：`Content-Type: application/json`
 - **所有模型调用必须走 Model Router API，不得直连其他渠道。**
-- 本方案拟调用的模型（均出自大赛 126 模型清单）：
+- 本方案调用的模型（均出自大赛 126 模型清单，且经 Token Plan `GET /v1/models` 实测确认可用）：
 
 | 环节 | 模型 ID | 用途 |
 |---|---|---|
-| 提示词设计 / 场景策划 | `qwen/qwen3.7-max` | 为五类图片设计生成提示词，融入平台风格要求 |
-| 商品图理解 / 质检精检 | `qwen/qwen3-vl-plus` | 参考图解析构建商品画像；生成图规范复检 |
-| 批量质检粗筛 | `qwen/qwen3-vl-flash` | 低成本批量预筛，可疑图再交 plus 精检 |
-| 五图生成 | `qwen/wan2.7-image-pro` | 白底图/场景图/模特图/对比图/尺寸图生成（同步调用） |
-| 图片本地化替换 | `qwen/wan2.5-i2i-preview` | 背景/文字/模特形象替换（异步任务 + 轮询） |
-| 原型验证小模型 | `qwen/qwen3.5-flash` | 按官方 Tips 先小模型验证再切高性能模型 |
+| 商品画像 / 提示词设计 | `qwen3.7-max` | 构建商品画像，为五类图片设计生成提示词，融入平台风格要求 |
+| 五图生成 | `wan2.7-image-pro` | 白底图/场景图/模特图/对比图/尺寸图生成（`/chat/completions` 多模态调用，同步返回） |
+| 图片本地化替换 | `qwen-image-2.0` | 背景/场景编辑（`/chat/completions` 图生图，同步返回） |
+
+> 说明：Token Plan 可用模型清单实测共 24 个，**不含 qwen3-vl 系列视觉模型**，因此商品图理解与质检降级为文本画像 + 人工复检提示；文档级 `ModelRouter_API.docx` 中的 `qwen/` 前缀模型名与异步调用方式在 Token Plan 网关均不可用，实际调用格式见【附录 A.3】。
 
 - 调用方式遵循官方 Tips：多模型组合调用（视觉理解 → 提示词设计 → 图片生成 → 质检）；产品展示场景使用**流式**输出。
 
@@ -56,9 +55,9 @@
 | 文件 | 说明 |
 |---|---|
 | `CLAUDE.md` | 项目规则、技术栈、目录结构、常用命令（AI/开发者进入仓库先读） |
-| `package.json` | workspaces 根配置（apps/web + apps/server） |
+| `package.json` | 根脚本（前端 npm + 后端 Maven） |
 | `apps/web/package.json` | 前端：React 18 + TypeScript + Vite + Tailwind CSS |
-| `apps/server/package.json` | 后端：Node.js ≥20 + Express + TypeScript |
+| `apps/server/pom.xml` | 后端：Java 25 + Spring Boot 4.0 + Spring AI 2.0.1（Maven） |
 
 ---
 
@@ -78,6 +77,7 @@
 | `附加材料_业务流程图.html` | 五图生成流水线流程图 |
 | `附加材料_产品原型.html` | 图片生成工作台产品原型（可交互 mockup） |
 | `ModelRouter_API.docx` | 大赛 API 完整文档（原始件） |
+| `docs/` | API 接入、架构、运维与变更记录 |
 
 ## 四、评审标准对照（设计自检）
 
@@ -92,40 +92,55 @@
 
 ### A.1 基础信息
 
-- Base URL: `https://model-router.edu-aliyun.com/v1`
+- Base URL: `https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
 - 认证: Bearer Token（API Key）；公共请求头 `Authorization: Bearer <your-api-key>`、`Content-Type: application/json`
 
 ### A.2 本方案用到的模型分类
 
 | 类别 | 模型 | 本方案用途 |
 |---|---|---|
-| 文本对话 | qwen/qwen3.7-max、qwen/qwen3.5-flash | 五图提示词设计、场景策划；原型验证 |
-| 视觉/多模态 | qwen/qwen3-vl-plus、qwen/qwen3-vl-flash | 商品图理解建画像；生成图质检精检/粗筛 |
-| 图片生成/编辑 | qwen/wan2.7-image-pro、qwen/wan2.7-image、qwen/wan2.5-i2i-preview | 五图生成（同步）；本地化替换（异步） |
+| 文本对话 | qwen3.7-max | 商品画像、五图提示词设计 |
+| 图片生成 | wan2.7-image-pro | 五图生成（`/chat/completions` 多模态，同步） |
+| 图片编辑 | qwen-image-2.0 | 本地化替换（`/chat/completions` 图生图，同步） |
 
-### A.3 接口要点（本方案相关）
+### A.3 接口要点（Token Plan 实测验证）
 
-| 接口 | 调用方式 | 关键点 |
-|---|---|---|
-| POST /v1/chat/completions | 同步/流式 | 兼容 OpenAI；视觉模型在 messages 传图（image_url）；产品展示用流式 |
-| POST /v1/images/generations | 新版同步 / 旧版异步 | wan2.7/2.6 同步，直接返回图片 URL；wan2.5/2.2 需 `X-DashScope-Async: enable` + `input.prompt` 格式 |
-| GET /v1/tasks/{task_id} | GET | 旧版图编辑模型（本地化替换）异步任务结果轮询 |
+Token Plan 网关上所有能力统一走 `POST /v1/chat/completions`（同步），图片能力不使用 `/v1/images/generations`：
 
-调用示例（图片生成，其余见 docx）：
+| 能力 | 模型 | 请求 content | 响应取值 |
+|---|---|---|---|
+| 文本对话 | qwen3.7-max | 纯字符串 | `choices[0].message.content` |
+| 文生图 | wan2.7-image-pro | `[{type:"text", text:"..."}]` | `output.choices[0].message.content[].image` |
+| 图生图 | qwen-image-2.0 | `[{type:"image", image:"<url>"},{type:"text", text:"..."}]` | 同上 |
+
+调用示例（文生图，完整封装见 `ModelRouterImageClient.java`）：
 
 ```bash
-curl https://model-router.edu-aliyun.com/v1/images/generations \
+  curl https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer sk-xxx" \
-  -d '{ "model": "qwen/wan2.7-image-pro",
-       "prompt": "纯白背景电商主图，轻量通勤托特包，商品占画面 85% 以上",
-       "size": "1024*1024" }'
+  -d '{ "model": "wan2.7-image-pro",
+       "messages": [{ "role": "user",
+         "content": [{ "type": "text",
+           "text": "纯白背景电商主图，轻量通勤托特包，商品占画面 85% 以上" }] }] }'
 ```
+
+实测不可用（与 docx 文档存在差异，勿按文档原样调用）：
+- `POST /v1/images/generations` → 400 `url error`；
+- `X-DashScope-Async: enable` 异步 → 403（该 Key 不支持异步调用）；
+- OpenAI 的 `image_url` 嵌套图片格式 → 400（图片 part 必须是 `type=image` + `image=url` 扁平字段）。
 
 ### A.4 常见问题速查
 
 | 问题 | 解决 |
 |---|---|
-| 图片生成报 "url error" | 旧版模型改异步：加 `X-DashScope-Async: enable`，用 `input.prompt` |
+| 图片生成报 "url error" | Token Plan 的 `/images/generations` 不可用，改走 `/chat/completions` 多模态调用（本方案已实现） |
+| 异步调用 403 | Token Plan Key 不支持异步，本地化改为同步图生图（本方案已实现） |
+| 图文混合 content 报错 | 图片 part 用 `{type:"image", image:url}` 扁平字段，不用 `image_url` 嵌套格式 |
 | qwq 调用失败 | 设置 `"stream": true`（本方案未使用 qwq） |
 | 401 / 鉴权失败 | 检查 `Authorization: Bearer <api-key>` 与环境变量配置 |
+| `model_not_found` | 用 `GET /v1/models` 查询 Token Plan 实际可用模型名（不带 `qwen/` 前缀） |
+
+### A.5 当前接口状态
+
+文本对话、文生图、图生图（本地化）三种能力均已在后端跑通端到端测试（真实图片 URL 返回）。图片生成尺寸由网关决定（文生图 2048×2048，图生图 1024×1024），暂不支持请求参数指定。Token Plan 无 VL 视觉模型，质检环节降级为人工复检提示。

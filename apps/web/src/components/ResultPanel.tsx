@@ -22,6 +22,7 @@ export function ResultPanel({ result }: { result: ImagePipelineResult }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="eyebrow mb-1">生成完成</div><h2 className="text-2xl font-semibold tracking-[-0.04em] text-[#17202b]">你的上架图包</h2><p className="mt-1 text-sm text-[#8d867c]">{result.images.length} 张图片 · {result.detailPages?.length ?? 0} 个详情页版本</p></div><button type="button" onClick={() => window.print()} className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2 text-xs font-semibold text-[#5e584f] hover:border-[#ef6a4c] hover:text-[#c84f36]">打印 / 导出</button></div>
       {/* 质检摘要 */}
       {result.qa.length > 0 && <QaSummary qa={result.qa} />}
 
@@ -31,7 +32,7 @@ export function ResultPanel({ result }: { result: ImagePipelineResult }) {
         return (
           <section
             key={platform}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="panel p-5"
           >
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -63,8 +64,13 @@ export function ResultPanel({ result }: { result: ImagePipelineResult }) {
           </section>
         );
       })}
+      {result.detailPages && result.detailPages.length > 0 && <DetailPages pages={result.detailPages} />}
     </div>
   );
+}
+
+function DetailPages({ pages }: { pages: NonNullable<ImagePipelineResult['detailPages']> }) {
+  return <section className="panel p-5"><div className="mb-4"><div className="eyebrow mb-1">Detail page</div><h2 className="text-lg font-semibold text-[#17202b]">多平台详情页草稿</h2><p className="mt-1 text-xs text-[#8d867c]">文案、卖点和图片顺序已按平台生成，可直接复制到后台继续编辑。</p></div><div className="space-y-3">{pages.map((page) => <details key={page.platform} className="rounded-xl border border-[#e2ddd5] bg-[#fffdf9] px-4 py-3"><summary className="cursor-pointer list-none text-sm font-semibold text-[#39342e]"><span className="mr-2 text-[#ef6a4c]">●</span>{page.platform} · {page.title}</summary><div className="mt-4 space-y-3 border-t border-[#eee8df] pt-4"><p className="text-sm font-medium text-[#514b43]">{page.subtitle}</p><ul className="list-disc space-y-1 pl-5 text-xs text-[#6f685e]">{page.sellingPoints.map((point) => <li key={point}>{point}</li>)}</ul>{page.sections.map((section) => <div key={section.type} className="rounded-lg bg-[#f4f1eb] p-3"><div className="text-xs font-semibold text-[#39342e]">{section.title}</div><p className="mt-1 text-xs leading-relaxed text-[#777168]">{section.body}</p></div>)}</div></details>)}</div></section>;
 }
 
 function ImageCard({
@@ -124,7 +130,7 @@ function QaSummary({ qa }: { qa: QaRecord[] }) {
   const failed = qa.length - passed;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="panel p-5">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">

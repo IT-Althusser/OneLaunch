@@ -1,17 +1,13 @@
 {
   "name": "onelaunch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "OneLaunch · 一键出海 — 跨境 AI 商品图片生成工作台（场景一：AI 智能上新）",
-  "workspaces": [
-    "apps/web",
-    "apps/server"
-  ],
+  "description": "OneLaunch · 一键出海 — Java + Spring AI 跨境 AI 商品图片生成工作台",
+  "workspaces": ["apps/web"],
   "scripts": {
     "dev:web": "npm run dev --workspace apps/web",
-    "dev:server": "npm run dev --workspace apps/server",
-    "build": "npm run build --workspaces",
-    "start:server": "npm run start --workspace apps/server"
+    "dev:server": "mvn -f apps/server/pom.xml spring-boot:run",
+    "build": "npm run build --workspace apps/web && mvn -f apps/server/pom.xml -DskipTests package"
   },
   "engines": {
     "node": ">=20",

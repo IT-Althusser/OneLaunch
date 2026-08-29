@@ -2,25 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply antialiased;
-  font-family: 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', 'Microsoft YaHei',
-    system-ui, -apple-system, sans-serif;
-}
-
-::selection {
-  background: #a7f3d0;
-}
-
-/* 细滚动条，减少视觉噪音 */
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
+:root { font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif; color: #17202b; background: #f4f1eb; font-synthesis: none; text-rendering: optimizeLegibility; }
+body { margin: 0; min-width: 320px; background: #f4f1eb; }
+button, input, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(239, 106, 76, 0.3); outline-offset: 2px; }
+::selection { color: #fffaf3; background: #ef6a4c; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #c8c2b8; background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+@layer components {
+  .panel { border: 1px solid #e2ddd5; border-radius: 20px; background: #fffdf9; box-shadow: 0 12px 32px rgba(51, 43, 32, 0.06); }
+  .field { width: 100%; border: 1px solid #d9d3c9; border-radius: 12px; background: #fffdf9; padding: 12px 14px; color: #17202b; transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease; }
+  .field::placeholder { color: #a49d92; }
+  .field:focus { border-color: #ef6a4c; background: #fff; box-shadow: 0 0 0 4px rgba(239, 106, 76, 0.1); outline: none; }
+  .eyebrow { color: #8b8479; font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
 }

@@ -1,4 +1,4 @@
-/** Types shared between frontend and backend (corresponds to apps/server/src/agents/orchestrator.ts) */
+/** Types shared between frontend and backend (corresponds to apps/server/src/main/java/com/onelaunch/ApiModels.java) */
 
 /** Five types of images (fixed capability scope of this solution) */
 export const IMAGE_TYPES = [
@@ -17,6 +17,8 @@ export interface ImagePipelineInput {
   sellingPoints: string;
   platforms: string[];
   referenceImageUrl?: string;
+  /** Optional presentation direction for the generated detail page. */
+  detailTone?: '专业可信' | '种草转化' | '简洁高端';
 }
 
 export interface GeneratedImage {
@@ -39,9 +41,27 @@ export interface StepRecord {
   detail?: string;
 }
 
+export interface DetailPageSection {
+  type: 'hero' | 'benefits' | 'scene' | 'comparison' | 'specs' | 'faq' | 'cta';
+  title: string;
+  body: string;
+  imageType?: ImageType;
+  bullets?: string[];
+}
+
+export interface DetailPage {
+  platform: string;
+  title: string;
+  subtitle: string;
+  sellingPoints: string[];
+  sections: DetailPageSection[];
+  compliance: string[];
+}
+
 export interface ImagePipelineResult {
   steps: StepRecord[];
   profile?: string;
   images: GeneratedImage[];
   qa: QaRecord[];
+  detailPages?: DetailPage[];
 }

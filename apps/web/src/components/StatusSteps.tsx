@@ -5,10 +5,8 @@
 import { IMAGE_TYPES, type StepRecord } from '../types';
 
 const STEP_LABELS: Record<string, string> = {
-  profile: '商品图理解',
-  prompts: '提示词设计',
-  generation: '五图生成',
-  qa: '质检闭环',
+  profile: '商品图理解', prompts: '提示词设计', generation: '五图生成', qa: '质检闭环',
+  '商品图理解': '商品图理解', '白底图质检': '白底图质检', '详情页编排': '详情页编排',
 };
 
 const STATUS_STYLE: Record<
@@ -30,7 +28,7 @@ export function StatusSteps({
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       {/* 步骤列表 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="panel p-5">
         <div className="mb-4">
           <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">
             PIPELINE · 六步流水线
@@ -43,7 +41,6 @@ export function StatusSteps({
           <StepRow num="00" label="输入解析" status="done" detail="商品名称 · 卖点 · 平台" />
 
           {steps.map((s, i) => {
-            const style = STATUS_STYLE[s.status];
             return (
               <StepRow
                 key={s.step}
@@ -56,13 +53,13 @@ export function StatusSteps({
           })}
 
           {/* 步骤 5：输出（始终完成） */}
-          <StepRow num="05" label="结果输出" status="done" detail="多平台上架图包" />
+          <StepRow num={`0${steps.length + 1}`} label="结果输出" status="done" detail="多平台上架图包" />
         </div>
       </section>
 
       {/* 商品画像 */}
       {profile && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="panel p-5">
           <div className="mb-3">
             <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">
               PRODUCT PROFILE
@@ -78,7 +75,7 @@ export function StatusSteps({
       )}
 
       {/* 图片类型说明 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="panel p-5">
         <div className="mb-3">
           <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">
             IMAGE TYPES · 五图类型
