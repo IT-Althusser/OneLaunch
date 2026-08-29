@@ -1,13 +1,8 @@
 /**
  * 处理流程面板 — 流水线步骤状态 + 商品画像
- * 展示六步流水线的执行结果与降级路径
+ * 展示流水线各步骤的执行结果与降级路径
  */
 import { IMAGE_TYPES, type StepRecord } from '../types';
-
-const STEP_LABELS: Record<string, string> = {
-  profile: '商品图理解', prompts: '提示词设计', generation: '五图生成', qa: '质检闭环',
-  '商品图理解': '商品图理解', '白底图质检': '白底图质检', '详情页编排': '详情页编排',
-};
 
 const STATUS_STYLE: Record<
   StepRecord['status'],
@@ -31,7 +26,7 @@ export function StatusSteps({
       <section className="panel p-5">
         <div className="mb-4">
           <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">
-            PIPELINE · 六步流水线
+            PIPELINE · 执行流水线
           </div>
           <h2 className="mt-0.5 text-sm font-bold text-slate-800">执行状态</h2>
         </div>
@@ -45,14 +40,14 @@ export function StatusSteps({
               <StepRow
                 key={s.step}
                 num={`0${i + 1}`}
-                label={STEP_LABELS[s.step] ?? s.step}
+                label={s.step}
                 status={s.status}
                 detail={s.detail}
               />
             );
           })}
 
-          {/* 步骤 5：输出（始终完成） */}
+          {/* 输出（始终完成） */}
           <StepRow num={`0${steps.length + 1}`} label="结果输出" status="done" detail="多平台上架图包" />
         </div>
       </section>

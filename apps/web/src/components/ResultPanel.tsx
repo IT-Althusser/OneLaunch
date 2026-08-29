@@ -1,6 +1,6 @@
 /**
- * 结果面板 — 按平台分组展示生成图片 + 质检标记
- * 白底图标注质检通过/未通过
+ * 结果面板 — 按平台分组展示生成图片 + 复检提醒
+ * 白底图标注待人工复检（Token Plan 无 VL 模型，质检为人工复检提示）
  */
 import {
   IMAGE_TYPES,
@@ -109,7 +109,7 @@ function ImageCard({
         <span className="text-[11px] font-semibold text-white">{type}</span>
         <span className="ml-1.5 text-[9px] text-white/70">{image.size}</span>
       </div>
-      {/* 质检标记 */}
+      {/* 复检标记 */}
       {qa && (
         <div
           className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
@@ -118,7 +118,7 @@ function ImageCard({
               : 'bg-red-500 text-white'
           }`}
         >
-          {qa.passed ? '质检通过' : '质检未过'}
+          {qa.passed ? '待人工复检' : '复检未过'}
         </div>
       )}
     </div>
@@ -134,10 +134,10 @@ function QaSummary({ qa }: { qa: QaRecord[] }) {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-[10px] font-bold tracking-[.14em] text-emerald-600">
-            QUALITY CHECK · 质检结论
+            QUALITY CHECK · 复检提醒
           </div>
           <h2 className="mt-0.5 text-sm font-bold text-slate-800">
-            白底图质检摘要
+            白底图生成确认
           </h2>
         </div>
         <div className="flex gap-2">

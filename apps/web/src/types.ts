@@ -16,7 +16,6 @@ export interface ImagePipelineInput {
   productName: string;
   sellingPoints: string;
   platforms: string[];
-  referenceImageUrl?: string;
   /** Optional presentation direction for the generated detail page. */
   detailTone?: '专业可信' | '种草转化' | '简洁高端';
 }

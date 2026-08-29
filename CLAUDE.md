@@ -6,7 +6,7 @@
 
 跨境 AI 商品图片生成工作台（比赛「场景一：AI 智能上新」· 选定方向：**AI 商品图片生成**）。
 核心任务：用 AI 实现从选品到上架的自动化，将新品上架流程从数天压缩至分钟级。
-本方案只做一件事：输入商品名称、卖点与可选参考图，自动生成**白底图、场景图、模特图、对比图、尺寸图**，并按 **Amazon / TikTok Shop / Temu / Shopee** 的尺寸与风格矩阵适配输出；扩展能力为图片本地化（背景/文字/模特替换）。
+本方案只做一件事：输入商品名称与卖点，自动生成**白底图、场景图、模特图、对比图、尺寸图**，并按 **Amazon / TikTok Shop / Temu / Shopee** 的风格要求适配输出；扩展能力为图片本地化（背景/画面风格替换）。
 
 ## 硬性规则（红线，不得违反）
 
@@ -14,7 +14,7 @@
 2. 所有模型调用必须走 **Model Router API**，不得直连其他渠道。
 3. Base URL：`https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`；认证：`Authorization: Bearer <API Key>`。
 4. API Key 只走环境变量 `MODEL_ROUTER_API_KEY`（`apps/server/.env`），**禁止硬编码**、禁止提交到仓库。
-5. 产品展示场景使用**流式输出**；`qwq` 系列必须 `stream: true`（本项目未使用 qwq）。
+5. 大赛要求产品展示场景流式输出，但 Token Plan 网关实测仅支持同步调用（含图片能力），本项目全部为同步调用；`qwq` 系列必须 `stream: true`（本项目未使用 qwq）。
 6. 模型选型只用大赛 126 模型清单内的模型（本项目选型表见 `README.md` 一.2）。
 7. 所有交付文件统一放 `D:\Java\code\vibe coding\ONE`；代码最终上传 GitHub。
 
@@ -127,7 +127,7 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
 - **平台策略**：首个目标平台生成全部五图，其余平台生成白底主图适配版。
-- **降级策略**：无参考图时商品画像降级为纯文本；Token Plan 无 VL 模型，白底图质检降级为生成记录 + 人工复检建议；任一步骤失败记录到 `steps` 并继续，不中断整体流水线。
+- **降级策略**：商品画像失败降级为纯文本拼接；Token Plan 无 VL 模型，白底图质检为生成确认 + 人工复检提醒；任一步骤失败记录到 `steps` 并继续，不中断整体流水线。
 
 ## 代码规范
 

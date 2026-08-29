@@ -29,9 +29,8 @@ public class ImagePipelineService {
                 ? List.of("Amazon") : request.platforms();
         String profile;
         try {
-            profile = chat("你是电商商品视觉分析专家。请用中文简洁输出商品画像，包含品类、外观、受众和使用场景。商品：%s；卖点：%s%s"
-                    .formatted(request.productName(), request.sellingPoints(),
-                            request.referenceImageUrl() == null ? "" : "；参考图：" + request.referenceImageUrl()));
+            profile = chat("你是电商商品视觉分析专家。请用中文简洁输出商品画像，包含品类、外观、受众和使用场景。商品：%s；卖点：%s"
+                    .formatted(request.productName(), request.sellingPoints()));
             if (profile == null || profile.isBlank()) throw new IllegalStateException("商品画像为空");
             steps.add(new ApiModels.StepRecord("商品图理解", "done", null));
         } catch (Exception e) {
@@ -64,7 +63,7 @@ public class ImagePipelineService {
         steps.add(new ApiModels.StepRecord("白底图质检", qa.isEmpty() ? "skipped" : "done", null));
 
         List<ApiModels.DetailPage> detailPages = platforms.stream()
-                .map(p -> fallbackPage(request.productName(), request.sellingPoints(), p))
+                .map(p -> fallbackPage(request.productName(), request.sellingPoints(), p, request.detailTone()))
                 .toList();
         steps.add(new ApiModels.StepRecord("详情页编排", "done", detailPages.size() + " 个平台版本"));
         return new ApiModels.ImagePipelineResponse(steps, profile, images, qa, detailPages);
@@ -103,19 +102,25 @@ public class ImagePipelineService {
         };
     }
 
-    private ApiModels.DetailPage fallbackPage(String productName, String sellingPoints, String platform) {
+    private ApiModels.DetailPage fallbackPage(String productName, String sellingPoints, String platform, String detailTone) {
         List<String> points = Arrays.stream(sellingPoints.split("[,，、;；\\n]"))
                 .map(String::trim).filter(s -> !s.isBlank()).limit(6).toList();
         List<String> safePoints = points.isEmpty() ? List.of("为日常使用打造", "细节清晰可见", "适配多平台上架") : points;
+        // 详情页语气（detailTone）：专业可信 / 种草转化 / 简洁高端
+        boolean seeding = "种草转化".equals(detailTone);
+        boolean minimal = "简洁高端".equals(detailTone);
+        String title = productName + (seeding ? "｜好物值得被看见" : minimal ? "｜少即是多" : "｜把核心卖点讲清楚");
+        String subtitle = safePoints.stream().limit(2).reduce((a, b) -> a + " · " + b)
+                .orElse(seeding ? "真实体验，自然种草" : minimal ? "克制设计，专注本质" : "为真实使用场景而设计");
         List<ApiModels.DetailPageSection> sections = List.of(
                 new ApiModels.DetailPageSection("hero", productName, safePoints.get(0), "白底图", List.of()),
-                new ApiModels.DetailPageSection("benefits", "为什么值得选", "用真实卖点快速建立购买理由。", "对比图", safePoints.stream().limit(4).toList()),
-                new ApiModels.DetailPageSection("scene", "放进你的日常", "围绕高频使用场景呈现自然、可信的使用画面。", "场景图", List.of()),
-                new ApiModels.DetailPageSection("comparison", "细节与差异", safePoints.size() > 2 ? safePoints.get(2) : "把关键结构、材质和体验差异放大展示。", "模特图", List.of()),
+                new ApiModels.DetailPageSection("benefits", seeding ? "用过就回不去了" : minimal ? "为什么是它" : "为什么值得选", seeding ? "把真实卖点变成忍不住分享的理由。" : minimal ? "每一个保留的细节都有存在的理由。" : "用真实卖点快速建立购买理由。", "对比图", safePoints.stream().limit(4).toList()),
+                new ApiModels.DetailPageSection("scene", seeding ? "博主同款生活场景" : "放进你的日常", seeding ? "让读者一眼代入拥有它的样子。" : "围绕高频使用场景呈现自然、可信的使用画面。", "场景图", List.of()),
+                new ApiModels.DetailPageSection("comparison", seeding ? "和普通款比一比" : "细节与差异", safePoints.size() > 2 ? safePoints.get(2) : "把关键结构、材质和体验差异放大展示。", "模特图", List.of()),
                 new ApiModels.DetailPageSection("specs", "参数一目了然", "尺寸、重量与材质信息按平台阅读习惯排布。", "尺寸图", safePoints.stream().limit(3).toList()),
                 new ApiModels.DetailPageSection("faq", "购买前常见问题", "适用于" + platform + "详情页的简洁问答模块。", null, List.of("适合哪些使用场景？", "核心材质和尺寸是什么？", "如何清洁与保养？")),
-                new ApiModels.DetailPageSection("cta", "现在就把它带回家", "看清卖点，再做决定。", null, List.of("真实信息优先", "平台规范已适配")));
-        return new ApiModels.DetailPage(platform, productName + "｜把核心卖点讲清楚", safePoints.stream().limit(2).reduce((a,b) -> a + " · " + b).orElse("为真实使用场景而设计"), safePoints, sections, List.of("主图与卖点遵循平台规范", "避免水印、拼图与无法验证的绝对化承诺"));
+                new ApiModels.DetailPageSection("cta", seeding ? "现在入手，早买早享受" : minimal ? "把它带回家" : "现在就把它带回家", seeding ? "看到这里的都是真心喜欢。" : "看清卖点，再做决定。", null, List.of("真实信息优先", "平台规范已适配")));
+        return new ApiModels.DetailPage(platform, title, subtitle, safePoints, sections, List.of("主图与卖点遵循平台规范", "避免水印、拼图与无法验证的绝对化承诺"));
     }
 
     private String safeMessage(Exception e) {

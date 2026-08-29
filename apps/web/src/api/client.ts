@@ -22,12 +22,3 @@ export async function runImagePipeline(
     body: JSON.stringify(input),
   });
 }
-
-export async function regenerateImage(input: { type: string; prompt: string; platform?: string }) {
-  return apiJson<{ image: ImagePipelineResult['images'][number] | null }>('/api/images/single', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-}
-
-/** POST /api/images/localize — Synchronous image-to-image localization edit */
-export async function localizeImage(input: { sourceUrl: string; targetMarket?: string; instruction?: string }) {
-  return apiJson<{ image: ImagePipelineResult['images'][number] | null }>('/api/images/localize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-}

@@ -19,12 +19,11 @@
   "productName": "轻量通勤托特包",
   "sellingPoints": "防泼水、可装 15 寸笔记本、自重 380g",
   "platforms": ["Amazon", "TikTok Shop"],
-  "referenceImageUrl": "https://example.com/product.jpg",
   "detailTone": "专业可信"
 }
 ```
 
-返回 `steps`、`profile`、`images`、`qa` 与 `detailPages`。首个平台生成全部五图，其余平台生成白底主图。
+返回 `steps`、`profile`、`images`、`qa` 与 `detailPages`。首个平台生成全部五图，其余平台生成白底主图。`detailTone` 可选（专业可信 / 种草转化 / 简洁高端），影响详情页草稿的标题与文案基调。
 
 ### 单图重生成
 

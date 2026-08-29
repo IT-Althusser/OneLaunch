@@ -168,9 +168,9 @@
           <div class="stat"><div class="n">-80%</div><div class="l">图片制作外包成本</div></div>
         </div>
         <div class="tools">
-          <button class="tool" data-t="gen"><div class="ti">图</div><div class="tt">五图生成工作台（核心）</div><div class="td">输入商品名称、卖点与可选参考图，一键生成白底图、场景图、模特图、对比图、尺寸图，自动适配多平台尺寸与风格。</div></button>
-          <button class="tool" data-t="localize"><div class="ti">地</div><div class="tt">图片本地化（扩展）</div><div class="td">同一产品图替换背景场景、文字语言、模特形象，适配不同区域市场审美，异步任务出图。</div></button>
-          <button class="tool" data-t="specs"><div class="ti">矩</div><div class="tt">平台规范矩阵</div><div class="td">各平台主图尺寸、附加尺寸与风格要求内置为配置，新增平台只加一条配置。</div></button>
+          <button class="tool" data-t="gen"><div class="ti">图</div><div class="tt">五图生成工作台（核心）</div><div class="td">输入商品名称与卖点，一键生成白底图、场景图、模特图、对比图、尺寸图，自动适配多平台风格。</div></button>
+          <button class="tool" data-t="localize"><div class="ti">地</div><div class="tt">图片本地化（扩展）</div><div class="td">同一产品图替换背景场景与画面风格，适配不同区域市场审美，图生图同步出图。</div></button>
+          <button class="tool" data-t="specs"><div class="ti">矩</div><div class="tt">平台规范速览</div><div class="td">各平台风格要求与白底规范内置为提示词模板，新增平台只加一条模板。</div></button>
         </div>
       </section>
 
@@ -185,8 +185,8 @@
             <input type="text" value="轻量通勤托特包">
             <label class="f">核心卖点 <em>*</em></label>
             <textarea>防泼水面料、可装 15 寸笔记本、自重仅 380g、隐藏式防盗袋</textarea>
-            <label class="f">商品参考图 URL（选填，用于商品图理解）</label>
-            <input type="text" placeholder="https://…">
+            <label class="f">详情页语气（选填：专业可信 / 种草转化 / 简洁高端）</label>
+            <div class="chips"><span class="chip on">专业可信</span><span class="chip">种草转化</span><span class="chip">简洁高端</span></div>
             <label class="f">目标平台 <em>*</em>（可多选）</label>
             <div class="checks">
               <label class="check on"><input type="checkbox" checked>Amazon</label>
@@ -195,20 +195,20 @@
               <label class="check"><input type="checkbox">Shopee</label>
             </div>
             <button class="btn">生成五图套图 →</button>
-            <div class="hint">首个平台生成全部五图（白底 / 场景 / 模特 / 对比 / 尺寸），其余平台生成白底主图适配版本；白底图强制质检。</div>
+            <div class="hint">首个平台生成全部五图（白底 / 场景 / 模特 / 对比 / 尺寸），其余平台生成白底主图适配版本；白底图附人工复检提醒。</div>
           </div>
 
           <!-- 右：进度 + 结果 -->
           <div style="display:flex;flex-direction:column;gap:14px;">
             <div class="card">
               <h3>PIPELINE · 流水线进度</h3>
-              <h4>商品图理解 → 提示词设计 → 五图生成 → 平台适配 → 质检</h4>
+              <h4>商品画像 → 提示词组装 → 五图生成 → 平台适配 → 复检</h4>
               <div class="steps">
-                <div class="step"><span class="dot">✓</span>商品图理解（qwen3-vl-plus 构建商品画像）<span class="st">done</span></div>
-                <div class="step"><span class="dot">✓</span>Amazon 提示词设计（qwen3.7-max · 五类图各一条）<span class="st">done</span></div>
+                <div class="step"><span class="dot">✓</span>商品画像（qwen3.7-max 构建商品画像）<span class="st">done</span></div>
+                <div class="step"><span class="dot">✓</span>Amazon 提示词组装（图类模板 + 平台风格 · 五类图各一条）<span class="st">done</span></div>
                 <div class="step"><span class="dot">✓</span>Amazon 图片生成（wan2.7-image-pro · 5 类）<span class="st">成功 5/5</span></div>
-                <div class="step"><span class="dot">✓</span>TikTok Shop 白底主图适配（960*1280 竖版）<span class="st">成功 1/1</span></div>
-                <div class="step"><span class="dot">✓</span>白底图质检（VL 复检背景纯度 / 占比 / 水印）<span class="st">通过 2/2</span></div>
+                <div class="step"><span class="dot">✓</span>TikTok Shop 白底主图适配（竖版风格）<span class="st">成功 1/1</span></div>
+                <div class="step"><span class="dot">✓</span>白底图生成确认（附人工复检提醒 · 背景/占比/水印）<span class="st">已标注 2/2</span></div>
               </div>
               <div class="profile">商品画像（AI 理解结果）
 品类：女士通勤托特包
@@ -220,13 +220,13 @@
 
             <div class="card">
               <h3>OUTPUT · 上架图包</h3>
-              <h4>按平台分组 · 附质检结论</h4>
+              <h4>按平台分组 · 附复检提醒</h4>
 
               <div class="plathead"><b>Amazon 套图</b><span class="tag">主图 1024*1024</span><span class="tag">纯白底 · 商品占比 ≥85%</span></div>
               <div class="gallery">
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#ffffff"/><rect x="30" y="38" width="40" height="34" rx="4" fill="#2f3a37"/><path d="M38 38 Q50 20 62 38" stroke="#2f3a37" stroke-width="4" fill="none"/><rect x="34" y="44" width="32" height="3" rx="1.5" fill="#576560"/></svg></div>
-                  <figcaption><span>白底图</span><span class="qa">质检通过</span></figcaption>
+                  <figcaption><span>白底图</span><span class="qa">待人工复检</span></figcaption>
                 </figure>
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#dcebe4"/><circle cx="76" cy="22" r="10" fill="#f4d35e"/><rect y="70" width="100" height="30" fill="#b9d4c6"/><rect x="34" y="42" width="32" height="28" rx="3" fill="#2f3a37"/><path d="M40 42 Q50 28 60 42" stroke="#2f3a37" stroke-width="3.5" fill="none"/></svg></div>
@@ -250,10 +250,10 @@
               <div class="gallery" style="grid-template-columns:repeat(5,1fr);max-width:40%;">
                 <figure class="fig">
                   <div class="ph" style="aspect-ratio:3/4;"><svg viewBox="0 0 90 120"><rect width="90" height="120" fill="#ffffff"/><rect x="25" y="42" width="40" height="40" rx="4" fill="#2f3a37"/><path d="M33 42 Q45 22 57 42" stroke="#2f3a37" stroke-width="4" fill="none"/></svg></div>
-                  <figcaption><span>白底图</span><span class="qa">质检通过</span></figcaption>
+                  <figcaption><span>白底图</span><span class="qa">待人工复检</span></figcaption>
                 </figure>
               </div>
-              <div class="hint">其余图类可基于首平台套图一键本地化适配（背景 / 文字 / 模特替换），见「图片本地化」。</div>
+              <div class="hint">其余图类可基于首平台套图一键本地化适配（背景 / 画面风格替换），见「图片本地化」。</div>
             </div>
           </div>
         </div>
@@ -280,50 +280,50 @@
           </div>
           <div class="card">
             <h3>03 · MODEL</h3><h4>输出与模型</h4>
-            <div class="modelbox"><div class="k">图片编辑模型（异步任务 + 轮询）</div><div class="v">qwen/wan2.5-i2i-preview</div></div>
-            <div class="modelbox"><div class="k">任务查询</div><div class="v">GET /v1/tasks/{task_id}</div></div>
-            <div class="hint">输出尺寸与源图一致；文字区域按目标语言重排；适配不同区域市场审美。</div>
+            <div class="modelbox"><div class="k">图片编辑模型（图生图，同步）</div><div class="v">qwen-image-2.0</div></div>
+            <div class="modelbox"><div class="k">调用方式</div><div class="v">POST /chat/completions（源图 + 指令）</div></div>
+            <div class="hint">同步返回结果图；背景与画面风格按目标市场替换；适配不同区域市场审美。</div>
             <button class="btn">生成本地化图 →</button>
           </div>
         </div>
       </section>
 
-      <!-- 平台规范矩阵 -->
+      <!-- 平台规范速览 -->
       <section class="panel" id="p-specs">
         <div class="card">
-          <h3>PLATFORM MATRIX · 规范即配置</h3>
-          <h4>platformSpecs — 新增平台只加一条配置，不改流水线代码</h4>
+          <h3>PLATFORM MATRIX · 规范即模板</h3>
+          <h4>平台风格模板 — 新增平台只加一条模板，不改流水线代码</h4>
           <table class="spec">
             <tr><th style="width:14%;">平台</th><th style="width:16%;">主图尺寸</th><th style="width:16%;">附加尺寸</th><th>风格与规范要求</th></tr>
-            <tr><td><b>Amazon</b></td><td>1024*1024</td><td>—</td><td>纯白背景主图（RGB 255,255,255），商品占画面 85% 以上，无水印、无拼图、无文字；白底图强制 VL 质检。</td></tr>
+            <tr><td><b>Amazon</b></td><td>1024*1024</td><td>—</td><td>纯白背景主图（RGB 255,255,255），商品占画面 85% 以上，无水印、无拼图、无文字；白底图附人工复检提醒。</td></tr>
             <tr><td><b>TikTok Shop</b></td><td>1024*1024</td><td>960*1280（竖版）</td><td>色彩明快、场景感强，贴近短视频内容审美，适配竖版展示。</td></tr>
             <tr><td><b>Temu</b></td><td>1024*1024</td><td>960*1280（竖版）</td><td>突出性价比与商品细节，构图干净，卖点直给。</td></tr>
             <tr><td><b>Shopee</b></td><td>1024*1024</td><td>—</td><td>商品主体清晰、明亮醒目，移动端小屏显示优化。</td></tr>
           </table>
-          <div class="hint">五图类型模板同样插件化：白底图 / 场景图 / 模特图 / 对比图 / 尺寸图，各类型提示词模板独立维护，新增图类不改主流程。</div>
+          <div class="hint">五图类型模板同样插件化：白底图 / 场景图 / 模特图 / 对比图 / 尺寸图，各类型提示词模板独立维护，新增图类不改主流程。生成尺寸由网关返回（文生图 2048×2048，图生图 1024×1024）。</div>
         </div>
       </section>
 
       <!-- 流水线说明 -->
       <section class="panel" id="p-flow">
         <div class="card">
-          <h3>PIPELINE · 六步工作流</h3>
-          <h4>1 个编排 Agent + 4 个专业子 Agent</h4>
+          <h3>PIPELINE · 工作流</h3>
+          <h4>1 个 Spring Boot 编排服务 · 三项模型能力统一调度</h4>
           <div class="steps">
-            <div class="step"><span class="dot">1</span>输入：商品名称、核心卖点、可选参考图 URL、目标平台（多选）</div>
-            <div class="step"><span class="dot">2</span>商品图理解：qwen3-vl-plus 构建结构化商品画像（无参考图时降级纯文本画像）</div>
-            <div class="step"><span class="dot">3</span>提示词设计：qwen3.7-max 按平台风格矩阵为五类图片各写一条生成提示词</div>
-            <div class="step"><span class="dot">4</span>五图生成：wan2.7-image-pro 按平台尺寸逐类生成（首平台全五图，其余平台白底适配版）</div>
-            <div class="step"><span class="dot">5</span>质检闭环：白底图 VL 复检，未通过标记原因、支持一键重生成</div>
-            <div class="step"><span class="dot">6</span>输出：多平台上架图包（含步骤状态、商品画像、质检结论）</div>
+            <div class="step"><span class="dot">1</span>输入：商品名称、核心卖点、详情页语气、目标平台（多选）</div>
+            <div class="step"><span class="dot">2</span>商品画像：qwen3.7-max 构建结构化商品画像（失败时降级纯文本拼接）</div>
+            <div class="step"><span class="dot">3</span>提示词组装：图类模板 + 平台风格 + 画像，五类图片各一条生成提示词</div>
+            <div class="step"><span class="dot">4</span>五图生成：wan2.7-image-pro 逐类同步生成（首平台全五图，其余平台白底适配版）</div>
+            <div class="step"><span class="dot">5</span>复检提醒：白底图生成确认 + 人工复检提示，支持单图重生成</div>
+            <div class="step"><span class="dot">6</span>输出：多平台上架图包（含步骤状态、商品画像、复检提醒、详情页草稿）</div>
           </div>
           <div class="row2" style="margin-top:12px;">
-            <div class="modelbox"><div class="k">提示词设计 / 场景策划</div><div class="v">qwen/qwen3.7-max</div></div>
-            <div class="modelbox"><div class="k">商品图理解 / 质检精检</div><div class="v">qwen/qwen3-vl-plus</div></div>
-            <div class="modelbox"><div class="k">五图生成（同步）</div><div class="v">qwen/wan2.7-image-pro</div></div>
-            <div class="modelbox"><div class="k">本地化替换（异步）</div><div class="v">qwen/wan2.5-i2i-preview</div></div>
+            <div class="modelbox"><div class="k">商品画像（同步）</div><div class="v">qwen3.7-max</div></div>
+            <div class="modelbox"><div class="k">五图生成（同步）</div><div class="v">wan2.7-image-pro</div></div>
+            <div class="modelbox"><div class="k">本地化替换（图生图，同步）</div><div class="v">qwen-image-2.0</div></div>
+            <div class="modelbox"><div class="k">统一调用</div><div class="v">POST /chat/completions</div></div>
           </div>
-          <div class="hint">模型分层降本：原型期用 qwen3.5-flash 验证，批量质检粗筛用 qwen3-vl-flash，精检与定稿用 plus / max —— 遵循官方「先小模型原型验证再切高性能模型」路径。</div>
+          <div class="hint">全同步链路：文本/文生图/图生图统一走 /chat/completions 多模态调用，同步返回结果，链路简单可靠、易排障。</div>
         </div>
       </section>
 

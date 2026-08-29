@@ -10,7 +10,6 @@ public final class ApiModels {
             String productName,
             String sellingPoints,
             List<String> platforms,
-            String referenceImageUrl,
             String detailTone) {}
 
     public record StepRecord(String step, String status, String detail) {}
