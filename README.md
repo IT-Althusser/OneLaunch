@@ -31,10 +31,11 @@
 | 商品画像 / 提示词设计 | `qwen3.7-max` | 构建商品画像，为五类图片设计生成提示词，融入平台风格要求 |
 | 五图生成 | `wan2.7-image-pro` | 白底图/场景图/模特图/对比图/尺寸图生成（`/chat/completions` 多模态调用，同步返回） |
 | 图片本地化替换 | `qwen-image-2.0` | 背景/场景编辑（`/chat/completions` 图生图，同步返回） |
+| 白底图质检 | `qwen3.6-plus` | 视觉模型自动质检（内容理解与合规检测：白底合规/商品完整/水印与违规元素），未通过项列明细 |
 
-> 说明：Token Plan 可用模型清单实测共 24 个，**不含 qwen3-vl 系列视觉模型**，因此商品图理解与质检降级为文本画像 + 人工复检提示；文档级 `ModelRouter_API.docx` 中的 `qwen/` 前缀模型名与异步调用方式在 Token Plan 网关均不可用，实际调用格式见【附录 A.3】。
+> 说明（2026-08-30 更新）：Token Plan 可用模型清单实测共 23 个，**清单中不含 `qwen3-vl` 等显式视觉模型名**，但实测文本档的 `qwen3.6-plus` / `qwen3.6-flash`（126 清单内）实为多模态视觉模型（OpenAI 嵌套 `image_url` 格式传图，实测通过），白底图质检由「人工复检提醒」升级为**视觉模型自动质检**（调用失败仍降级人工复检）；文档级 `ModelRouter_API.docx` 中的 `qwen/` 前缀模型名与异步调用方式在 Token Plan 网关均不可用，实际调用格式见【附录 A.3】。
 
-- 调用方式遵循官方 Tips：多模型组合调用（商品画像 → 提示词设计 → 图片生成 → 复检提醒）。大赛要求产品展示场景流式输出，但 Token Plan 网关实测仅支持同步调用（含图片能力），故本项目全部为同步调用。
+- 调用方式遵循官方 Tips：多模型组合调用（商品画像 → 提示词设计 → 图片生成 → 视觉质检）。大赛要求产品展示场景流式输出，但 Token Plan 网关实测仅支持同步调用（含图片能力），故本项目全部为同步调用。
 
 ### 3. 交付物约束
 
@@ -81,10 +82,10 @@
 
 ## 四、评审标准对照（设计自检）
 
-- 业务价值：图片制作降本（外包成本降 80%+）+ 提效（1-3 天 → 分钟级）+ 避损（白底图复检提醒，降低拒登率）。
-- 创新性：「画像先生成 + 复检提醒」的图片生产流水线；平台风格内置提示词模板，新增平台只加一条模板。
-- 可行性：全部能力映射到 Token Plan 实测可用模型（qwen3.7-max / wan2.7-image-pro / qwen-image-2.0），端到端跑通并返回真实图片 URL。
-- 技术思路：Spring Boot 编排服务统一调度商品画像 / 提示词组装 / 五图生成 / 复检提醒；文本与图片能力统一走 `/chat/completions` 同步链路，简单可靠。
+- 业务价值：图片制作降本（外包成本降 80%+）+ 提效（1-3 天 → 分钟级）+ 避损（白底图视觉质检自动拦截违规图并给出原因，降低拒登率）。
+- 创新性：「画像先生成 + 视觉质检自动复检」的图片生产流水线；平台风格内置提示词模板，新增平台只加一条模板。
+- 可行性：全部能力映射到 Token Plan 实测可用模型（qwen3.7-max / wan2.7-image-pro / qwen-image-2.0 / qwen3.6-plus），端到端跑通并返回真实图片 URL。
+- 技术思路：Spring Boot 编排服务统一调度商品画像 / 提示词组装 / 五图生成 / 视觉质检；文本、图片与视觉理解能力统一走 `/chat/completions` 同步链路，简单可靠。
 
 ---
 
@@ -102,6 +103,7 @@
 | 文本对话 | qwen3.7-max | 商品画像、五图提示词设计 |
 | 图片生成 | wan2.7-image-pro | 五图生成（`/chat/completions` 多模态，同步） |
 | 图片编辑 | qwen-image-2.0 | 本地化替换（`/chat/completions` 图生图，同步） |
+| 视觉理解 | qwen3.6-plus | 白底图质检（内容理解与合规检测，`/chat/completions` 传图，同步） |
 
 ### A.3 接口要点（Token Plan 实测验证）
 
@@ -112,6 +114,7 @@ Token Plan 网关上所有能力统一走 `POST /v1/chat/completions`（同步�
 | 文本对话 | qwen3.7-max | 纯字符串 | `choices[0].message.content` |
 | 文生图 | wan2.7-image-pro | `[{type:"text", text:"..."}]` | `output.choices[0].message.content[].image` |
 | 图生图 | qwen-image-2.0 | `[{type:"image", image:"<url>"},{type:"text", text:"..."}]` | 同上 |
+| 视觉理解（质检） | qwen3.6-plus | `[{type:"image_url", image_url:{url:"<url>"}},{type:"text", text:"..."}]`（OpenAI 嵌套格式，可传 base64 data URL） | `choices[0].message.content`（建议 `"enable_thinking": false` 关闭思维链） |
 
 调用示例（文生图，完整封装见 `ModelRouterImageClient.java`）：
 
@@ -128,7 +131,9 @@ Token Plan 网关上所有能力统一走 `POST /v1/chat/completions`（同步�
 实测不可用（与 docx 文档存在差异，勿按文档原样调用）：
 - `POST /v1/images/generations` → 400 `url error`；
 - `X-DashScope-Async: enable` 异步 → 403（该 Key 不支持异步调用）；
-- OpenAI 的 `image_url` 嵌套图片格式 → 400（图片 part 必须是 `type=image` + `image=url` 扁平字段）。
+- 图片**生成/编辑**模型（wan2.7-image-pro、qwen-image-2.0 等）用 OpenAI `image_url` 嵌套格式传图 → 400（这两类模型的图片 part 必须是 `type=image` + `image=url` 扁平字段）。
+
+实测可用（2026-08-30 补充）：图生图 `image` 字段同时接受公网 URL 与 `data:image/...;base64`（本地图片直传），且单次调用可传多张参考图（上限 6）；网关模型清单以 `GET /v1/models` 实时为准（当前 23 个，图片模型 4 个：wan2.7-image、wan2.7-image-pro、qwen-image-2.0、qwen-image-2.0-pro）。**视觉能力与清单表现不同**：清单无 `vl` 字样模型，但文本档 `qwen3.6-plus` / `qwen3.6-flash` 实测为多模态视觉模型（嵌套 `image_url` 传图 + base64 均可用，图片宽高须大于 10px，单图最高 1600 万像素）。
 
 ### A.4 常见问题速查
 
@@ -136,11 +141,12 @@ Token Plan 网关上所有能力统一走 `POST /v1/chat/completions`（同步�
 |---|---|
 | 图片生成报 "url error" | Token Plan 的 `/images/generations` 不可用，改走 `/chat/completions` 多模态调用（本方案已实现） |
 | 异步调用 403 | Token Plan Key 不支持异步，本地化改为同步图生图（本方案已实现） |
-| 图文混合 content 报错 | 图片 part 用 `{type:"image", image:url}` 扁平字段，不用 `image_url` 嵌套格式 |
+| 图文混合 content 报错 | 图片生成/编辑模型用 `{type:"image", image:url}` 扁平字段；视觉理解模型（qwen3.6-plus 等）用 `{type:"image_url", image_url:{url}}` 嵌套格式 |
+| 图片宽高校验失败 | 视觉理解要求图片宽高大于 10px（1×1 测试图会报 `must be larger than 10`） |
 | qwq 调用失败 | 设置 `"stream": true`（本方案未使用 qwq） |
 | 401 / 鉴权失败 | 检查 `Authorization: Bearer <api-key>` 与环境变量配置 |
 | `model_not_found` | 用 `GET /v1/models` 查询 Token Plan 实际可用模型名（不带 `qwen/` 前缀） |
 
 ### A.5 当前接口状态
 
-文本对话、文生图、图生图（本地化）三种能力均已在后端跑通端到端测试（真实图片 URL 返回）。图片生成尺寸由网关决定（文生图 2048×2048，图生图 1024×1024），暂不支持请求参数指定。Token Plan 无 VL 视觉模型，质检环节降级为人工复检提示。
+文本对话、文生图、图生图（本地化）、视觉质检四种能力均已在后端跑通端到端测试（真实图片 URL 返回；E2E 中视觉质检真实拦截了一张印有平台名称的违规白底图并给出原因）。图片生成尺寸由网关决定（文生图 2048×2048，图生图 1024×1024），暂不支持请求参数指定。白底图质检由视觉模型 `qwen3.6-plus` 自动执行，调用或解析失败时降级为人工复检提醒。

@@ -89,9 +89,9 @@
         <text class="chips" x="587" y="81" text-anchor="middle" font-size="10">Amazon · TikTok Shop · Temu · Shopee</text>
         <rect class="box1" x="722" y="36" width="246" height="62" rx="8"></rect>
         <text class="box1t" x="845" y="62" text-anchor="middle">流水线步骤进度</text>
-        <text class="chips" x="845" y="81" text-anchor="middle" font-size="10">画像 → 提示词 → 生成 → 复检</text>
+        <text class="chips" x="845" y="81" text-anchor="middle" font-size="10">画像 → 提示词 → 生成 → 视觉质检</text>
         <rect class="box1" x="980" y="36" width="228" height="62" rx="8"></rect>
-        <text class="box1t" x="1094" y="62" text-anchor="middle">套图画廊 + 复检标记</text>
+        <text class="box1t" x="1094" y="62" text-anchor="middle">套图画廊 + 质检标记</text>
         <text class="chips" x="1094" y="81" text-anchor="middle" font-size="10">按平台分组 · 支持单图重生成</text>
       </g>
       <path class="arrow" d="M705,116 L705,132" marker-end="url(#ar)"></path>
@@ -134,11 +134,11 @@
         <rect class="agent" x="722" y="258" width="246" height="78" rx="8"></rect>
         <text class="agentt" x="845" y="286" text-anchor="middle" font-size="13">五图生成</text>
         <text class="agents" x="845" y="306" text-anchor="middle" font-size="10.5">wan2.7-image-pro</text>
-        <text class="agents" x="845" y="322" text-anchor="middle" font-size="10.5">五图同步生成 · 首平台全五图</text>
+        <text class="agents" x="845" y="322" text-anchor="middle" font-size="10.5">每平台全五图 · 提示词按平台差异化</text>
         <rect class="agent" x="980" y="258" width="228" height="78" rx="8"></rect>
-        <text class="agentt" x="1094" y="286" text-anchor="middle" font-size="13">复检提醒</text>
-        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">生成确认 + 复检提示</text>
-        <text class="agents" x="1094" y="322" text-anchor="middle" font-size="10.5">白底图规范人工复检</text>
+        <text class="agentt" x="1094" y="286" text-anchor="middle" font-size="13">白底图视觉质检</text>
+        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">qwen3.6-plus 自动质检</text>
+        <text class="agents" x="1094" y="322" text-anchor="middle" font-size="10.5">白底图合规视觉检测</text>
       </g>
       <path class="arrow" d="M705,352 L705,368" marker-end="url(#ar)"></path>
 
@@ -201,23 +201,23 @@
         <text class="outt" x="587" y="674" text-anchor="middle">多平台适配版本</text>
         <text class="chips" x="587" y="693" text-anchor="middle" font-size="10">按平台尺寸与风格矩阵输出</text>
         <rect class="out" x="722" y="648" width="246" height="62" rx="8"></rect>
-        <text class="outt" x="845" y="674" text-anchor="middle">复检提醒 + 步骤状态</text>
-        <text class="chips" x="845" y="693" text-anchor="middle" font-size="10">白底图人工复检提示（附原因）</text>
+        <text class="outt" x="845" y="674" text-anchor="middle">质检结论 + 步骤状态</text>
+        <text class="chips" x="845" y="693" text-anchor="middle" font-size="10">质检结论（通过/未通过附原因）</text>
         <rect class="out" x="980" y="648" width="228" height="62" rx="8"></rect>
         <text class="outt" x="1094" y="674" text-anchor="middle">单图重生成</text>
         <text class="chips" x="1094" y="693" text-anchor="middle" font-size="10">/api/images/single 按提示词重出</text>
       </g>
 
-      <!-- 复检回流（右侧虚线） -->
+      <!-- 质检回流（右侧虚线） -->
       <path class="loop" d="M1224,679 C1236,679 1236,297 1212,297" marker-end="url(#ar)"></path>
-      <text class="note" x="1232" y="492" text-anchor="middle" font-size="10" transform="rotate(90 1232 492)">复检提醒 · 支持单图重生成</text>
+      <text class="note" x="1232" y="492" text-anchor="middle" font-size="10" transform="rotate(90 1232 492)">质检结论 · 支持单图重生成</text>
     </svg>
     <figcaption>图 1 · OneLaunch 技术架构：六层架构，Spring Boot 编排服务驱动五图生成流水线，全部模型经阿里云百炼 Model Router API 调用</figcaption>
   </figure>
 
   <div class="legend">
-    <b>图例：</b>绿色实心块 = 流水线能力（编排服务调度）· 深色块 = Model Router API 能力（统一 Bearer Token 认证）· 浅色块 = 数据与配置 · 虚线 = 复检回流。<br>
-    <b>架构要点：</b>① 画像先生成 — qwen3.7-max 先建商品画像，再驱动五图生成，保证生成图与商品特征一致；② 平台风格内置 — 风格/白底规范融入提示词模板，新增平台只加一条模板；③ 复检提醒 — 白底图附人工复检提示，支持单图重生成；④ 统一同步链路 — 文本/文生图/图生图全部走 /chat/completions，同步返回、易排障。
+    <b>图例：</b>绿色实心块 = 流水线能力（编排服务调度）· 深色块 = Model Router API 能力（统一 Bearer Token 认证）· 浅色块 = 数据与配置 · 虚线 = 质检回流。<br>
+    <b>架构要点：</b>① 画像先生成 — qwen3.7-max 先建商品画像，再驱动五图生成，保证生成图与商品特征一致；② 平台风格内置 — 风格/白底规范融入提示词模板，新增平台只加一条模板；③ 视觉质检 — qwen3.6-plus 对白底图做内容理解与合规检测，未通过项列明原因；④ 统一同步链路 — 文本/文生图/图生图/视觉理解全部走 /chat/completions，同步返回、易排障。
   </div>
 </div>
 </body>

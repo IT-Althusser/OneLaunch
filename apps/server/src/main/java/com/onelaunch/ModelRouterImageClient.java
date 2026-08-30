@@ -18,12 +18,17 @@ import java.util.Map;
  * - 异步请求头 X-DashScope-Async 被 403 拒绝（"does not support asynchronous calls"）；
  * - 图片生成/编辑统一走 POST /chat/completions 的多模态 content 数组：
  *   文生图：[{type:"text", text:prompt}]，模型 wan2.7-image-pro；
- *   图生图：[{type:"image", image:url}, {type:"text", text:prompt}]，模型 qwen-image-2.0
- *   （注意图片 part 是 type=image + image=url 扁平字段，不是 OpenAI 的 image_url 嵌套格式）。
+ *   图生图：[{type:"image", image:url}...,{type:"text", text:prompt}]，模型 qwen-image-2.0
+ *   （图片 part 是 type=image + image=url 扁平字段，不是 OpenAI 的 image_url 嵌套格式）。
+ * - 2026-08-30 实测：image 字段同时接受公网 URL 与 data:image/...;base64,xxx（本地上传直传），
+ *   且一次调用可传多张参考图。
  * - 图片模型响应包在 output.choices 下，content 为数组，元素含 {image: url}。
  */
 @Component
 public class ModelRouterImageClient {
+    /** 单次调用参考图上限，防止请求体过大。 */
+    public static final int MAX_REFERENCE_IMAGES = 6;
+
     private final RestClient restClient;
     private final String apiKey;
     private final String imageModel;
@@ -46,17 +51,65 @@ public class ModelRouterImageClient {
         public boolean isEmpty() { return urls == null || urls.isEmpty(); }
     }
 
-    /** 文生图。 */
-    public ImageResult generateImage(String prompt) {
-        return postImageChat(imageModel, List.of(Map.of("type", "text", "text", prompt)));
+    /** 文生图（可用模型覆盖）。 */
+    public ImageResult generateImage(String prompt, String modelOverride) {
+        return postImageChat(model(modelOverride, imageModel), List.of(Map.of("type", "text", "text", prompt)));
     }
 
     /** 图生图编辑（本地化替换）：源图 + 文本指令。 */
-    public ImageResult editImage(String prompt, String sourceUrl) {
+    public ImageResult editImage(String prompt, String sourceUrl, String modelOverride) {
+        return editImage(prompt, List.of(sourceUrl), modelOverride);
+    }
+
+    /** 参考图生成/编辑：多张参考图（URL 或 base64 data URL）+ 文本指令，实测单次可传多图。 */
+    public ImageResult editImage(String prompt, List<String> referenceImages, String modelOverride) {
+        if (referenceImages == null || referenceImages.isEmpty()) {
+            throw new IllegalArgumentException("图生图至少需要一张参考图");
+        }
         List<Map<String, Object>> parts = new ArrayList<>();
-        parts.add(Map.of("type", "image", "image", sourceUrl));
+        referenceImages.stream().limit(MAX_REFERENCE_IMAGES).forEach(url ->
+                parts.add(Map.of("type", "image", "image", url)));
         parts.add(Map.of("type", "text", "text", prompt));
-        return postImageChat(editModel, parts);
+        return postImageChat(model(modelOverride, editModel), parts);
+    }
+
+    /** GET /v1/models：网关实时可用模型 ID 列表（如 qwen3.7-max、wan2.7-image-pro…）。 */
+    public List<String> listModels() {
+        requireKey();
+        JsonNode response = restClient.get()
+                .uri("/models")
+                .header("Authorization", "Bearer " + apiKey)
+                .retrieve()
+                .body(JsonNode.class);
+        List<String> ids = new ArrayList<>();
+        JsonNode data = response == null ? null : response.path("data");
+        if (data.isArray()) {
+            for (JsonNode node : data) {
+                String id = node.path("id").asText("");
+                if (!id.isBlank()) ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    public record FetchedImage(String contentType, byte[] bytes) {}
+
+    /** 同源代理拉取网关返回的图片（前端 canvas 裁切与下载需要同源）。仅允许 http(s) 地址。 */
+    public FetchedImage fetchImage(String absoluteUrl) {
+        if (absoluteUrl == null || !(absoluteUrl.startsWith("https://") || absoluteUrl.startsWith("http://"))) {
+            throw new IllegalArgumentException("仅支持 http(s) 图片地址");
+        }
+        var entity = restClient.get()
+                .uri(java.net.URI.create(absoluteUrl))
+                .retrieve()
+                .toEntity(byte[].class);
+        String contentType = entity.getHeaders().getContentType() == null
+                ? "image/png" : entity.getHeaders().getContentType().toString();
+        return new FetchedImage(contentType, entity.getBody() == null ? new byte[0] : entity.getBody());
+    }
+
+    private String model(String override, String fallback) {
+        return override == null || override.isBlank() ? fallback : override.trim();
     }
 
     private ImageResult postImageChat(String model, List<Map<String, Object>> contentParts) {

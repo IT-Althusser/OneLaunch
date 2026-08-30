@@ -34,7 +34,9 @@ npm run build        # web: tsc + vite build；server: Maven package
 
 - `url error`：Token Plan 的 `/images/generations` 不可用。本项目全部图片能力改走 `/chat/completions` 多模态调用（见 `ModelRouterImageClient.java`），该错误不应再出现；若网关未来放开该端点，可再评估切换。
 - 异步 403：Token Plan Key 不支持异步调用，本地化接口为同步图生图，无需轮询。
-- 图文混合 content 报 400：图片 part 必须是 `{type:"image", image:url}` 扁平字段，不是 `image_url` 嵌套格式。
+- 图文混合 content 报 400：图片生成/编辑模型必须用 `{type:"image", image:url}` 扁平字段；视觉理解模型（`ModelRouterVisionClient.java`，白底图质检）相反必须用 OpenAI 嵌套 `{type:"image_url", image_url:{url}}` 格式，并建议 `"enable_thinking": false`。
+- 视觉质检报 `must be larger than 10`：视觉理解要求图片宽高大于 10px（1×1 测试图会触发）。
+- 指定尺寸不生效：网关忽略 `size` 参数（实测），投放画幅由前端单图工作台按 1:1 / 3:2 / 2:3 居中裁切（依赖同源代理 `GET /api/image-proxy`）。
 
 ## 清理
 

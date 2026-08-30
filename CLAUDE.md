@@ -40,9 +40,9 @@ ONE/
 │   │   ├── package.json
 │   │   ├── vite.config.ts        # /api 代理到后端（默认 3100，见下方端口说明）
 │   │   └── src/
-│   │       ├── App.tsx           # 工作台主页面
-│   │       ├── components/       # TaskForm / StatusSteps / ResultPanel / RightPanel / Sidebar
-│   │       ├── api/client.ts     # 后端 API 客户端
+│   │       ├── App.tsx           # 工作台编排：创作工作台 / 生成工作台双 tab
+│   │       ├── components/       # CreatePanel（01 参考图+02 商品资料三区布局）/ StudioView（槽位+思考日志+单图操作）/ ToolWorkbench（侧栏工具的单图工作台整页）/ ReferenceUploader / RightPanel（03 模型与调用）/ Sidebar
+│   │       ├── api/client.ts     # 后端 API 客户端（含 SSE 流式解析）
 │   │       └── types.ts          # 流水线输入/输出类型
 │   └── server/                   # 后端：Java 25 + Spring Boot 4 + Spring AI（Maven 工程）
 │       ├── pom.xml               # Spring Boot 4.0.6 + Spring AI 2.0.1 依赖
@@ -50,18 +50,26 @@ ONE/
 │       └── src/main/
 │           ├── java/com/onelaunch/
 │           │   ├── ServerApplication.java      # 入口
-│           │   ├── ApiController.java          # /api 路由
-│           │   ├── ImagePipelineService.java   # 五图流水线编排
-│           │   ├── ModelRouterImageClient.java # 图片生成/编辑客户端（/chat/completions）
-│           │   ├── TokenPlanChatModel.java     # Spring AI ChatModel 实现（文本）
+│           │   ├── ApiController.java          # /api 路由（含 /api/models 与 SSE 流式端点）
+│           │   ├── ImagePipelineService.java   # 五图流水线编排（同步 + SSE 事件流双模式）
+│           │   ├── ModelRouterImageClient.java # 图片生成/编辑客户端（/chat/completions，支持 base64 参考图与模型覆盖）
+│           │   ├── ModelRouterVisionClient.java# 视觉理解客户端（白底图质检：内容理解与合规检测，嵌套 image_url 传图）
+│           │   ├── TokenPlanChatModel.java     # Spring AI ChatModel 实现（文本，支持按请求覆盖模型）
 │           │   ├── ChatClientConfig.java       # ChatClient 装配
 │           │   ├── HttpClientConfig.java       # RestClient 超时配置
-│           │   └── ApiModels.java              # 请求/响应模型
+│           │   └── ApiModels.java              # 请求/响应模型（含参考图与模型覆盖字段）
 │           └── resources/application.yml       # 端口 / Base URL / 模型 ID 集中管理
 ├── 提交内容_方案概述与技术方案.md
 ├── 附加材料_架构图.html
 ├── 附加材料_业务流程图.html
 ├── 附加材料_产品原型.html
+├── DESIGN.md                     # 设计系统（色彩 / 字体 / 组件语言，impeccable 用）
+├── PRODUCT.md                    # 产品定义（用户路径与成功标准）
+├── docs/                         # 架构 / 接入 / 运维 / 变更记录
+│   ├── architecture.md
+│   ├── integration-guide.md
+│   ├── runbook.md
+│   └── CHANGES.md
 └── ModelRouter_API.docx          # 大赛 API 完整文档（原始件，只读参考）
 ```
 
@@ -93,6 +101,7 @@ MODEL_ROUTER_API_KEY=sk-xxx   # 必填，算力审核通过后发放
 # PORT=3100                    # 可选
 # MODEL_ROUTER_BASE_URL=...    # 可选，默认 Token Plan 专属地址
 # MODEL_ROUTER_TEXT_MODEL=qwen3.7-max        # 可选，文本模型
+# MODEL_ROUTER_VISION_MODEL=qwen3.6-plus     # 可选，白底图视觉质检模型（126 清单内具备视觉能力）
 # MODEL_ROUTER_IMAGE_MODEL=wan2.7-image-pro  # 可选，文生图模型
 # MODEL_ROUTER_EDIT_MODEL=qwen-image-2.0     # 可选，图生图编辑模型
 # MODEL_ROUTER_TIMEOUT_SECONDS=120           # 可选，单次调用读超时
@@ -107,27 +116,37 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 | 文本对话（商品画像/提示词） | `qwen3.7-max` | 纯字符串 | `choices[0].message.content`（字符串） |
 | 文生图（五图生成） | `wan2.7-image-pro` | 数组 `[{type:"text", text:...}]` | `output.choices[0].message.content[].image` |
 | 图生图（本地化编辑） | `qwen-image-2.0` | 数组 `[{type:"image", image:url}, {type:"text", text:...}]` | 同上 |
+| 视觉理解（白底图质检） | `qwen3.6-plus`（或 `qwen3.6-flash`） | 数组 `[{type:"image_url", image_url:{url:...}}, {type:"text", text:...}]`（OpenAI 嵌套格式，URL/base64 均可） | `choices[0].message.content`（建议 `"enable_thinking": false`，否则思维链进 `reasoning_content`） |
 
 实测不可用（勿再尝试）：
 - `POST /v1/images/generations` → 直接返回 400 `url error`；
 - `X-DashScope-Async: enable` 异步 → 403 `current user api does not support asynchronous calls`；
-- OpenAI 的 `image_url` 嵌套格式 → 400 `Either 'text' or 'image' must be provided, but not both`（图片 part 必须是 `type=image` + `image=url` 扁平字段）；
-- Token Plan 可用模型清单可通过 `GET /v1/models` 获取（当前 24 个，**无 VL 视觉模型**）。
+- 图片**生成/编辑**模型的 `image_url` 嵌套格式 → 400 `Either 'text' or 'image' must be provided, but not both`（这两类模型图片 part 必须是 `type=image` + `image=url` 扁平字段；**视觉理解模型相反，必须用嵌套格式**）；
+- `qwen3.7-max` 传图（任何格式）→ 报错，确认纯文本。
+
+实测可用（2026-08-30）：
+- 图生图 `image` 字段接受公网 URL **和** `data:image/...;base64`（本地图直传）；
+- 单次图生图调用可传**多张参考图**（多个 `{type:"image"}` part，上限 6）；
+- **视觉理解不体现在 `/v1/models` 清单**（清单无 `vl` 字样，实测 23 个模型）：文本档 `qwen3.6-plus` / `qwen3.6-flash`（126 清单内）实测为多模态视觉模型，嵌套 `image_url` 传图 + base64 均可用（图片宽高须大于 10px、单图最高 1600 万像素），`enable_thinking:false` 后 `content` 直接返回答案；`qwen3.7-plus` / `qwen3.8-max` / `qwen3.8-flash` 实测同样视觉可用，但**不在 126 清单内，不作选型**（红线 6）。
 
 ## API 路由速查
 
 - `GET /api/health`：健康检查。
-- `POST /api/images/set`：五图 + 详情页流水线。
-- `POST /api/images/single`：单图重生成（同步返回图片）。
+- `GET /api/models`：网关模型清单按能力分组（文生图/图生图/文本/视觉/其他 + `visionAvailable`；供前端「模型与调用」面板）。
+- `GET /api/image-proxy`：同源图片代理（`?url=`，`download=true` 下载），供前端画幅裁切与下载原图；仅 http(s)。
+- `POST /api/images/set`：五图 + 详情页流水线（同步；支持 `referenceImages` 参考图与 `imageModel`/`editModel`/`textModel`/`visionModel` 模型覆盖；详情页为 AI 按平台规范自动编排，失败降级模板；白底图自动视觉质检，失败降级人工复检提醒）。
+- `POST /api/images/set/stream`：同上但为 SSE 流式（事件：log / profile / image_start / image_done / image_fail / done / fatal）。
+- `POST /api/images/single`：单图生成（三分支：文生图 / referenceImages 参考图生成 / sourceUrl 基于已生成图修改），供侧栏工具工作台与槽位「重新生成 / 修改」。
 - `POST /api/images/localize`：图片本地化（同步图生图编辑，直接返回结果图）。
+- `POST /api/detail-page`：独立 AI 详情页自动化（不依赖五图流水线）：名称/卖点 + 平台多选 + 语气 → 画像 + 按平台 AI 组合配图引用与文案（`generatedTypes` 传已有生成图类型供引用）；AI 编排失败降级模板。供侧栏「AI 详情页」工作台调用。
 
 完整接入方式见 `docs/integration-guide.md`，运维见 `docs/runbook.md`，架构见 `docs/architecture.md`。
 
 ## 核心业务概念
 
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
-- **平台策略**：首个目标平台生成全部五图，其余平台生成白底主图适配版。
-- **降级策略**：商品画像失败降级为纯文本拼接；Token Plan 无 VL 模型，白底图质检为生成确认 + 人工复检提醒；任一步骤失败记录到 `steps` 并继续，不中断整体流水线。
+- **平台策略**：每个目标平台均生成全部五图（10 图 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化风格与合规规则（`platformRule`），多平台出图互不雷同、贴合各平台自身特色。
+- **降级策略**：商品画像失败降级为纯文本拼接；白底图视觉质检未通过时给出修复提示词样例并自动重试一次（二次质检结果为准），视觉质检本身失败（调用/解析异常或网关暂无可用视觉模型）才降级为生成确认 + 人工复检提醒；任一步骤失败记录到 `steps` 并继续，不中断整体流水线。
 
 ## 代码规范
 

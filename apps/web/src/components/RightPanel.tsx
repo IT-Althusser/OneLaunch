@@ -1,9 +1,128 @@
-const MODELS = [{ label: '画像', value: 'qwen3.7-max', hint: '商品画像与提示词基调' }, { label: '生成', value: 'wan2.7-image-pro', hint: '五图同步生成' }, { label: '编辑', value: 'qwen-image-2.0', hint: '本地化图生图替换' }];
-const SPECS = [{ platform: 'Amazon', spec: '纯白底 · 主体 ≥85%' }, { platform: 'TikTok Shop', spec: '竖版 · 场景感' }, { platform: 'Temu', spec: '细节 · 卖点直给' }, { platform: 'Shopee', spec: '清晰 · 移动端优化' }];
+import type { ModelCatalog, ModelOption, ModelSelection } from '../types';
 
-export function RightPanel() {
-  return <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-[#e2ddd5] bg-[#f8f5ef] px-5 py-7 xl:block"><div className="sticky top-0"><div className="eyebrow mb-2">Model router</div><h2 className="text-xl font-semibold tracking-[-0.03em] text-[#17202b]">模型编排</h2><p className="mt-1 text-xs text-[#8d867c]">三种能力统一走 Model Router，按流水线自动编排。</p>
-    <div className="mt-7"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold text-[#514b43]">这套图怎么完成</span><span className="text-[10px] font-semibold text-[#ef6a4c]">自动编排</span></div><div className="space-y-2">{MODELS.map((m) => <div key={m.label} className="flex items-center gap-3 rounded-xl bg-[#fffdf9] px-3.5 py-3"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#eee9e1] text-[10px] font-bold text-[#6b645b]">{m.label.slice(0, 1)}</span><div className="min-w-0"><div className="truncate text-xs font-semibold text-[#39342e]">{m.value}</div><div className="mt-0.5 text-[10px] text-[#9a9389]">{m.hint}</div></div></div>)}</div></div>
-    <div className="my-7 h-px bg-[#e2ddd5]" /><div><div className="mb-3 text-xs font-semibold text-[#514b43]">平台速览</div><div className="space-y-2">{SPECS.map((p) => <div key={p.platform} className="flex items-center justify-between border-b border-[#e8e2d9] pb-2 text-xs"><span className="font-semibold text-[#4e4840]">{p.platform}</span><span className="text-right text-[10px] text-[#8d867c]">{p.spec}</span></div>)}</div></div>
-    <div className="mt-7 rounded-2xl bg-[#19232b] px-4 py-4 text-xs leading-relaxed text-[#b6c0c5]"><span className="font-semibold text-[#fffaf3]">文字建画像，图片按平台规范出。</span><br />五图同步生成，白底图附人工复检提醒，本地化走图生图编辑。</div></div></aside>;
+function Select({
+  id,
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  options: ModelOption[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  // 已验证模型排前面，当前值不在清单（清单加载失败降级）时保留现值
+  const sorted = [...options].sort((a, b) => Number(b.verified) - Number(a.verified));
+  const known = sorted.some((o) => o.id === value);
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <label htmlFor={id} className="min-w-0 flex-1 truncate text-xs font-semibold text-[#514b43]">{label}</label>
+        <span className="shrink-0 text-[10px] text-[#a49d92]">{hint}</span>
+      </div>
+      <select
+        id={id}
+        className="field select-field !py-2.5 text-xs font-medium"
+        value={known ? value : ''}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {!known && <option value="">当前模型 {value}（网关清单不可用）</option>}
+        {sorted.map((o) => (
+          <option key={o.id} value={o.id}>{o.id}{o.verified ? ' · 已验证' : ''}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/**
+ * 03 · 模型与调用：右栏可选的生成模型调用面板（不再放功能讲解）。
+ * 分组对应技术栈：通义万相（图片生成）· Qwen-Image（图生图/参考图）· Qwen 系列（文案）·
+ * 视觉模型（白底图质检：内容理解与合规检测；网关无可用视觉模型时降级人工复检）。
+ */
+export function RightPanel({
+  catalog,
+  selection,
+  onChange,
+}: {
+  catalog: ModelCatalog | null;
+  selection: ModelSelection;
+  onChange: (next: ModelSelection) => void;
+}) {
+  return (
+    <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-[#e2ddd5] bg-[#f8f5ef] px-5 py-7 xl:block">
+      <div className="sticky top-0">
+        <header className="mb-5">
+          <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">03</span>模型与调用</h2>
+          <p className="mt-1 text-xs text-[#8d867c]">{catalog ? `网关在线 · ${catalog.textToImage.length + catalog.imageToImage.length} 个图片模型可用` : '正在读取网关模型清单…'}</p>
+        </header>
+
+        {catalog ? (
+          <div className="space-y-5">
+            <Select
+              id="model-image"
+              label="图片生成 · 通义万相"
+              hint="文生图"
+              options={catalog.textToImage}
+              value={selection.imageModel}
+              onChange={(id) => onChange({ ...selection, imageModel: id })}
+            />
+            <Select
+              id="model-edit"
+              label="参考图 / 编辑 · Qwen-Image"
+              hint="图生图"
+              options={catalog.imageToImage}
+              value={selection.editModel}
+              onChange={(id) => onChange({ ...selection, editModel: id })}
+            />
+            <Select
+              id="model-text"
+              label="文案生成 · Qwen 系列"
+              hint="画像 / 提示词"
+              options={catalog.text}
+              value={selection.textModel}
+              onChange={(id) => onChange({ ...selection, textModel: id })}
+            />
+
+            {catalog.visionAvailable && catalog.vision.length > 0 ? (
+              <div className="space-y-2">
+                <Select
+                  id="model-vision"
+                  label="白底图质检 · 视觉模型"
+                  hint="内容理解与合规"
+                  options={catalog.vision}
+                  value={selection.visionModel}
+                  onChange={(id) => onChange({ ...selection, visionModel: id })}
+                />
+                <p className="text-[11px] leading-relaxed text-[#9a9389]">
+                  白底图生成后自动视觉质检：白底纯净度、商品完整性、水印与违规元素检测，未通过项列明细。
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#eee4d2] bg-[#fdf8ef] px-3.5 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#7a6a4f]">视觉模型 · 内容理解与合规检测</span>
+                  <span className="rounded-full bg-[#f3e8d2] px-2 py-0.5 text-[9px] font-bold text-[#9a7b3f]">不可用</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-[#9a8a68]">网关清单暂无可用视觉模型，白底图质检降级为人工复检提醒。</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3" aria-hidden>
+            {[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-[#eee9e1]" />)}
+          </div>
+        )}
+
+        <div className="mt-6 h-px bg-[#e2ddd5]" />
+        <p className="mt-4 text-[11px] leading-relaxed text-[#9a9389]">
+          有参考图自动走图生图模型；无参考图走文生图模型。单图重新生成沿用当前选择。
+        </p>
+      </div>
+    </aside>
+  );
 }

@@ -6,6 +6,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -19,7 +20,7 @@ import java.util.Map;
 
 /**
  * Model Router /chat/completions 的 Spring AI ChatModel 实现（OpenAI 兼容协议）。
- * 文本对话（商品画像、提示词设计等）统一走此模型。
+ * 文本对话（商品画像、提示词设计等）统一走此模型；支持按请求覆盖模型 ID。
  */
 @Component
 public class TokenPlanChatModel implements ChatModel {
@@ -46,7 +47,7 @@ public class TokenPlanChatModel implements ChatModel {
             messages.add(Map.of("role", role(message), "content", message.getText()));
         }
         Map<String, Object> body = new HashMap<>();
-        body.put("model", model);
+        body.put("model", requestModel(prompt));
         body.put("messages", messages);
         body.put("stream", false);
         JsonNode response = client.post().uri("/chat/completions")
@@ -57,6 +58,15 @@ public class TokenPlanChatModel implements ChatModel {
                 .body(JsonNode.class);
         String text = response == null ? "" : response.path("choices").path(0).path("message").path("content").asText("");
         return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
+    }
+
+    /** 请求带 ChatOptions.model 时按请求覆盖，否则用配置的默认文本模型。 */
+    private String requestModel(Prompt prompt) {
+        ChatOptions options = prompt.getOptions();
+        if (options != null && options.getModel() != null && !options.getModel().isBlank()) {
+            return options.getModel().trim();
+        }
+        return model;
     }
 
     private String role(Message message) {

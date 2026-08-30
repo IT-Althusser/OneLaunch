@@ -137,7 +137,7 @@
       <rect class="step" x="458" y="408" width="362" height="92" rx="10"></rect>
       <text class="stept" x="639" y="438" text-anchor="middle" font-size="14">五图生成 + 多平台风格适配</text>
       <text class="steps" x="639" y="460" text-anchor="middle" font-size="11">按图类提示词逐类生成（同步调用）</text>
-      <text class="steps" x="639" y="478" text-anchor="middle" font-size="11">首平台全五图 · 其余平台白底主图适配版</text>
+      <text class="steps" x="639" y="478" text-anchor="middle" font-size="11">每平台全五图 · 提示词按平台规范差异化</text>
       <rect class="data" x="40" y="416" width="330" height="76" rx="8"></rect>
       <text class="datat" x="205" y="444" text-anchor="middle" font-size="12.5">五图套图</text>
       <text class="datas" x="205" y="464" text-anchor="middle" font-size="10.5">白底图 · 场景图 · 模特图 · 对比图 · 尺寸图</text>
@@ -154,22 +154,22 @@
       <rect class="num" x="420" y="534" width="34" height="92" rx="8"></rect>
       <text class="numt" x="437" y="586" text-anchor="middle" font-size="15">4</text>
       <rect class="step" x="458" y="534" width="362" height="92" rx="10"></rect>
-      <text class="stept" x="639" y="564" text-anchor="middle" font-size="14">复检提醒（白底图）</text>
+      <text class="stept" x="639" y="564" text-anchor="middle" font-size="14">白底图视觉质检</text>
       <text class="steps" x="639" y="586" text-anchor="middle" font-size="11">背景纯度 / 商品完整性 / 水印文字 / 占比规范</text>
-      <text class="steps" x="639" y="604" text-anchor="middle" font-size="11">生成确认 → 人工复检提醒 · 支持单图重生成</text>
+      <text class="steps" x="639" y="604" text-anchor="middle" font-size="11">qwen3.6-plus 自动审核 · 支持单图重生成</text>
       <rect class="data" x="40" y="542" width="330" height="76" rx="8"></rect>
-      <text class="datat" x="205" y="570" text-anchor="middle" font-size="12.5">复检提醒</text>
-      <text class="datas" x="205" y="590" text-anchor="middle" font-size="10.5">生成确认 + 人工复检提示</text>
+      <text class="datat" x="205" y="570" text-anchor="middle" font-size="12.5">视觉质检</text>
+      <text class="datas" x="205" y="590" text-anchor="middle" font-size="10.5">自动质检 + 未通过项明细</text>
       <text class="datas" x="205" y="606" text-anchor="middle" font-size="10.5">把平台拒登风险拦在上架之前</text>
       <path class="degrade" d="M370,580 L416,580" marker-end="url(#arg)"></path>
       <rect class="model" x="870" y="542" width="330" height="76" rx="8"></rect>
-      <text class="modelt" x="1035" y="570" text-anchor="middle" font-size="12.5">人工复检（Token Plan 无 VL 模型）</text>
-      <text class="models" x="1035" y="590" text-anchor="middle" font-size="10.5">复检项内置提示 · 结果页标注提醒</text>
-      <text class="models" x="1035" y="606" text-anchor="middle" font-size="10.5">待复检项明确后可接 VL 模型自动复检</text>
+      <text class="modelt" x="1035" y="570" text-anchor="middle" font-size="12.5">视觉质检（qwen3.6-plus）</text>
+      <text class="models" x="1035" y="590" text-anchor="middle" font-size="10.5">质检项内置标准 · 结果页标注结论</text>
+      <text class="models" x="1035" y="606" text-anchor="middle" font-size="10.5">质检失败时自动降级为人工复检提醒</text>
       <path class="degrade" d="M870,580 L824,580" marker-end="url(#arg)"></path>
-      <!-- 复检回流 -->
+      <!-- 质检回流 -->
       <path class="loop" d="M458,560 C300,560 300,470 452,462" marker-end="url(#arw)"></path>
-      <text class="loopt" x="270" y="522" text-anchor="middle" font-size="11">复检提醒 → 单图重生成</text>
+      <text class="loopt" x="270" y="522" text-anchor="middle" font-size="11">质检回流 → 单图重生成</text>
       <path class="arrow" d="M620,626 L620,656" marker-end="url(#ar)"></path>
 
       <!-- 步骤5 输出 -->
@@ -178,7 +178,7 @@
       <rect class="io" x="458" y="660" width="362" height="92" rx="10"></rect>
       <text class="iot" x="639" y="690" text-anchor="middle" font-size="14">输出：多平台上架图包</text>
       <text class="ios" x="639" y="712" text-anchor="middle" font-size="11">五图套图 + 各平台适配版本 + 商品画像</text>
-      <text class="ios" x="639" y="730" text-anchor="middle" font-size="11">步骤状态 + 复检提醒 · 画廊展示 · 直接上架</text>
+      <text class="ios" x="639" y="730" text-anchor="middle" font-size="11">步骤状态 + 质检结论 · 画廊展示 · 直接上架</text>
 
       <!-- 本地化扩展分支 -->
       <path class="degrade" d="M820,706 L866,706" marker-end="url(#arg)"></path>
@@ -192,7 +192,7 @@
         <rect class="data" x="40" y="790" width="214" height="74" rx="8"></rect>
         <text class="datat" x="147" y="816" text-anchor="middle" font-size="12">白底图</text>
         <text class="datas" x="147" y="836" text-anchor="middle" font-size="10">纯白背景 · 商品占比 ≥85%</text>
-        <text class="datas" x="147" y="851" text-anchor="middle" font-size="10">无水印文字 · 附复检提醒</text>
+        <text class="datas" x="147" y="851" text-anchor="middle" font-size="10">无水印文字 · 附质检结论</text>
         <rect class="data" x="268" y="790" width="214" height="74" rx="8"></rect>
         <text class="datat" x="375" y="816" text-anchor="middle" font-size="12">场景图</text>
         <text class="datas" x="375" y="836" text-anchor="middle" font-size="10">真实使用场景氛围</text>
@@ -217,15 +217,15 @@
       <text class="steps" x="320" y="944" text-anchor="middle" font-size="11">摄影 / 修图 / 模特逐件外包，多平台反复裁改</text>
       <rect class="io" x="640" y="896" width="560" height="64" rx="10"></rect>
       <text class="iot" x="920" y="922" text-anchor="middle" font-size="13">OneLaunch：一次输入 → 五图套图 + 多平台版本 · 5 分钟内</text>
-      <text class="ios" x="920" y="944" text-anchor="middle" font-size="11">图片制作成本下降 80% 以上 · 白底复检提醒降低拒登率</text>
+      <text class="ios" x="920" y="944" text-anchor="middle" font-size="11">图片制作成本下降 80% 以上 · 白底视觉质检降低拒登率</text>
       <path class="arrow" d="M600,928 L636,928" marker-end="url(#ar)"></path>
     </svg>
-    <figcaption>图 2 · 五图生成业务流程：输入 → 商品画像 → 提示词设计 → 五图生成与平台适配 → 复检提醒 → 多平台上架图包（本地化为可选扩展）</figcaption>
+    <figcaption>图 2 · 五图生成业务流程：输入 → 商品画像 → 提示词设计 → 五图生成与平台适配 → 白底图视觉质检 → 多平台上架图包（本地化为可选扩展）</figcaption>
   </figure>
 
   <div class="legend">
-    <b>图例：</b>绿色实心 = 输入/输出 · 白底绿框 = 流水线步骤 · 深色块 = 调用模型（全部经 Model Router API，Bearer Token 认证）· 浅色块 = 中间数据 · 橙色虚线 = 复检回流重生成 · 灰色虚线 = 数据流/降级路径。<br>
-    <b>流程要点：</b>① 每一步失败都有降级策略（画像失败降级文本拼接、单图失败不中断整体）；② 白底图复检提醒把平台拒登风险拦在上架前；③ 平台风格要求内置提示词模板，新增平台只加一条模板；④ 全同步链路：文本/文生图/图生图统一走 /chat/completions，简单可靠易排障。
+    <b>图例：</b>绿色实心 = 输入/输出 · 白底绿框 = 流水线步骤 · 深色块 = 调用模型（全部经 Model Router API，Bearer Token 认证）· 浅色块 = 中间数据 · 橙色虚线 = 质检回流重生成 · 灰色虚线 = 数据流/降级路径。<br>
+    <b>流程要点：</b>① 每一步失败都有降级策略（画像失败降级文本拼接、单图失败不中断整体）；② 白底图视觉质检（qwen3.6-plus 内容理解与合规检测）把平台拒登风险拦在上架前；③ 平台风格要求内置提示词模板，新增平台只加一条模板；④ 全同步链路：文本/文生图/图生图统一走 /chat/completions，简单可靠易排障。
   </div>
 </div>
 </body>
