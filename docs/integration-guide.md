@@ -45,9 +45,9 @@
 | `image_done` | `{type, platform, size, url, prompt}` | 单图完成 |
 | `image_fail` | `{type, platform, error}` | 单图失败（含网关错误信息） |
 | `done` | 完整 `ImagePipelineResponse` | 任务结束 |
+| `fatal` | `{error}` | 流程级异常 |
 
 质检记录（`qa[]`）字段：`issues`（视觉质检未通过项明细）、`model`（执行审核的视觉模型）、`suggestedPrompt`（未通过时的修复提示词样例，符合平台规范可直接重生成）。白底图质检未通过且有样例时，流水线会自动按样例重新生成一次并二次质检，二次结果为准。
-| `fatal` | `{error}` | 流程级异常 |
 
 ### 模型清单
 
