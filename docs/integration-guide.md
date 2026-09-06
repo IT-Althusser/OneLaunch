@@ -48,7 +48,7 @@
 | `done` | 完整 `ImagePipelineResponse` | 任务结束 |
 | `fatal` | `{error}` | 流程级异常 |
 
-质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容；新增 `status`：`passed` 表示审核通过、`failed` 表示审核未通过、`manual_review` 表示视觉审核未完成并需人工复检。`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为中文修复建议。演示默认 `MODEL_ROUTER_QA_SCOPE=white`（每平台仅白底图质检）；设置 `MODEL_ROUTER_QA_SCOPE=all` 后为完整模式（每平台五次初检）；`white` 仅每平台一次白底兼容质检，不含市场广告法。两种模式下白底图未通过且有建议均自动重试一次、按相同模式二次审核，其余图不自动重生成。人工复检保留旧 `passed=true` 和 `model=null` 以兼容旧客户端，客户端应优先依据 `status=manual_review` 显示待复检；白底兼容路径的 `complianceIssues` 为空数组，使用 issues 文本列表。
+质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容。`status` 为 `passed`、`failed` 或 `manual_review`；人工复检时 `passed=false`。`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为中文修复建议。默认 `MODEL_ROUTER_QA_SCOPE=all`，逐图审核并对照原始资料；`white` 仅每平台一次白底兼容质检，不含市场广告法。模型生成的四类图审核未通过时最多修复一次；尺寸图使用确定性文字排版，不交给模型重画数字。SSE `qa_first` 记录初检，`qa` 记录当前结果。图片 URL 可能是 PNG data URL，客户端应直接显示和下载，不能将其拼入代理查询字符串。
 
 ### 模型清单
 

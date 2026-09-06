@@ -2,7 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { PLATFORMS, type ImagePipelineInput, type ModelSelection, type ReferenceImage } from '../types';
 
-const SAMPLE = { productName: '轻量通勤托特包', sellingPoints: '防泼水面料、可装 15 寸笔记本、自重仅 380g、大容量多隔层', platforms: ['Amazon', 'TikTok Shop'] };
+const SAMPLE = { productName: '轻量通勤托特包', sellingPoints: '防泼水面料、可装 15 寸笔记本、自重仅 380g、大容量多隔层。演示设定：包体宽 38 cm、高 30 cm、厚 12 cm（非实测）', platforms: ['Amazon', 'TikTok Shop'] };
 
 export function CreatePanel({
   refs,
@@ -126,7 +126,7 @@ export function CreatePanel({
       {/* 提交条 */}
       <div className="panel flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-lg text-xs leading-relaxed text-[#8d867c]">
-          调用计划：画像与详情页文本 {platforms.length + (productName.trim() || sellingPoints.trim() ? 1 : 0)} 次 · 图片 {platforms.length * 5} 次{hasRefs ? '图生图' : '文生图'} · {qaScope === 'white' ? '白底图质检' : '全图合规检测'} {platforms.length * (qaScope === 'white' ? 1 : 5)} 次（白底图必要时追加一次修复与复检）
+          {platforms.length} 个平台 · {platforms.length * 5} 张图片 · {qaScope === 'white' ? '白底图质检' : '全图合规检测'} · 按需修复
         </p>
         <button type="submit" disabled={loading || !ready}
           className="rounded-xl bg-[#ef6a4c] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">

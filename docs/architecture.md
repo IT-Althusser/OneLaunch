@@ -30,7 +30,7 @@ React/Vite → Spring Boot /api/images/set/stream（SSE，主流程；/api/image
 
 ## 容错
 
-合规检测覆盖五类图，默认 `qa-scope=white` 以白底兼容路径缩短演示等待；完整模式 `qa-scope=all` 逐图检测。SSE 通过 `qa` 事件推送单图结果，视觉调用失败降级人工复检，独立检测入口始终覆盖全部五类图。
+合规检测默认 `qa-scope=all`，每出一张立即审核，并对照原始商品资料。合格白底图作为后续生成参考；四类模型生成图最多自动修复一次，尺寸图由 Java 2D 确定性排版。SSE 的 `qa_first` 保留初检结果，`qa` 推送当前结果。视觉 JSON 格式恢复最多一次，不能抹掉已有问题；审核未完成时 `status=manual_review` 且 `passed=false`。独立检测入口覆盖全部五类图。
 
 合规检测由规则知识库驱动：`ComplianceRuleLibrary` 启动扫描 `resources/compliance-rules/platform/*.md` 与 `market/*.md`，剥离 HTML 来源注释并缓存到不可变 Map；目前平台 4 文件、市场 5 文件。英文名称转小写并将空格换为连字符作为文件名，中文市场使用既有别名（日本→japan、欧洲/欧盟→eu、东南亚→sea）。增加匹配名称的规则文件、重新构建并重启即可加载；新增前端可选市场/平台仍需同步界面选项。文件缺失、空文件或加载失败均记录告警，回退通用文案，未知市场不会误用 US 规则。SSE 合规日志显示文件来源或兜底状态。五图生成风格规则暂留代码，后续统一入库，再演进为规则与案例向量知识库 + RAG。
 

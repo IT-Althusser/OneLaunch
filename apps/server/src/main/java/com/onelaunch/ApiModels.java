@@ -27,7 +27,7 @@ public final class ApiModels {
     public record GeneratedImage(String type, String platform, String size, String url) {}
 
     /**
-     * 白底图质检记录：status 是审核状态的权威语义，passed 保留向后兼容。
+     * 图片质检记录：status 是审核状态的权威语义；未完成审核时 passed=false。
      * 降级人工复检时 status=manual_review，model/issues/suggestedPrompt 为 null。
      */
     public record QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform, String status) {
@@ -37,7 +37,7 @@ public final class ApiModels {
 
         public static String statusFor(boolean passed) { return passed ? "passed" : "failed"; }
     }
-    public record ComplianceCheckRequest(String imageUrl, String imageType, String platform, String market, String visionModel) {}
+    public record ComplianceCheckRequest(String imageUrl, String imageType, String platform, String market, String visionModel, String productFacts) {}
 
     public record DetailPageSection(
             String type,

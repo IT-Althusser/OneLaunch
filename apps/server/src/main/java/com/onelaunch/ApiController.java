@@ -25,7 +25,7 @@ public class ApiController {
         if (request.imageUrl()==null||request.imageUrl().isBlank()) return ResponseEntity.badRequest().body(Map.of("error","请上传图片或填写 imageUrl"));
         if (request.platform()==null||request.platform().isBlank()) return ResponseEntity.badRequest().body(Map.of("error","请选择检测平台 platform"));
         if (request.market()==null||request.market().isBlank()) return ResponseEntity.badRequest().body(Map.of("error","请选择目标市场 market"));
-        try { return ResponseEntity.ok(visionClient.complianceCheck(request.visionModel(),request.imageUrl(),request.imageType(),request.platform(),request.market())); }
+        try { return ResponseEntity.ok(visionClient.complianceCheck(request.visionModel(),request.imageUrl(),request.imageType(),request.platform(),request.market(),request.productFacts())); }
         catch(IllegalArgumentException e){ return ResponseEntity.badRequest().body(Map.of("error",e.getMessage())); }
         catch(Exception e){ return ResponseEntity.internalServerError().body(Map.of("error",ApiErrors.message(e))); }
     }

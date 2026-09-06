@@ -102,6 +102,7 @@ export async function regenerateSingle(req: SingleImageRequest): Promise<Generat
 
 /** 网关图片的同源代理地址（canvas 裁切与下载原图需要同源）。 */
 export function imageProxyUrl(url: string, download = false): string {
+  if (url.startsWith('data:image/')) return url;
   return `/api/image-proxy?url=${encodeURIComponent(url)}${download ? '&download=true' : ''}`;
 }
 

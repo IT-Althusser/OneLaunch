@@ -12,7 +12,7 @@ npm run dev:web
 
 ## 冒烟检查
 
-默认 `MODEL_ROUTER_QA_SCOPE=white` 用于演示；需要五图各做合规检测时，在 `apps/server/.env` 设置 `MODEL_ROUTER_QA_SCOPE=all` 后重启。完整模式会增加视觉调用和等待时间，实测耗时见 CHANGES。真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`，使用网关自产图片，避免不可达图源。
+默认 `MODEL_ROUTER_QA_SCOPE=all`，五图均做合规检测并核对原始资料；已有环境若显式设置为 `white`，需改为 `all` 后重启。尺寸图支持明确的“宽38cm、高30cm、厚12cm”等带单位资料，没有资料则显示未提供；示例中的尺寸是演示设定。真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`。
 
 ```powershell
 Invoke-WebRequest http://localhost:3100/api/health

@@ -421,7 +421,7 @@ export function ToolWorkbench({
                   {result.applied ? '已应用 ✓' : `应用回${platform}槽位`}
                 </button>
               )}
-              <a href={imageProxyUrl(result.image.url, true)} className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-5 py-2.5 text-center text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">下载原图</a>
+              <a href={imageProxyUrl(result.image.url, true)} download="product-image.png" className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-5 py-2.5 text-center text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">下载原图</a>
               {aspect !== '1:1' && (
                 <button type="button" onClick={downloadCropped} className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-5 py-2.5 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">
                   下载{aspect}裁切图

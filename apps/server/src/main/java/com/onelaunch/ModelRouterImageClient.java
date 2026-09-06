@@ -95,6 +95,15 @@ public class ModelRouterImageClient {
 
     public record FetchedImage(String contentType, byte[] bytes) {}
 
+    public ImageResult dimensionGuide(String sourceUrl, String facts) {
+        ApiErrors.requireImage(sourceUrl);
+        byte[] source = sourceUrl.startsWith("data:image/")
+                ? java.util.Base64.getDecoder().decode(sourceUrl.substring(sourceUrl.indexOf(',') + 1))
+                : fetchImage(sourceUrl).bytes();
+        byte[] rendered = DimensionGuideRenderer.render(source, facts);
+        return new ImageResult(List.of("data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(rendered)), "1600x1200");
+    }
+
     /** 同源代理拉取网关返回的图片（前端 canvas 裁切与下载需要同源）。仅允许 http(s) 地址。 */
     public FetchedImage fetchImage(String absoluteUrl) {
         if (absoluteUrl == null || !(absoluteUrl.startsWith("https://") || absoluteUrl.startsWith("http://"))) {

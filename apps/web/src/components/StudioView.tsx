@@ -347,6 +347,7 @@ function SlotCard({
     if (!state?.url || busy) return;
     const a = document.createElement('a');
     a.href = imageProxyUrl(state.url, true);
+    a.download = `${type}.png`;
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();

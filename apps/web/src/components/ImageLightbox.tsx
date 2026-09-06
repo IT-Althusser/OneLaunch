@@ -50,7 +50,7 @@ export function ImageLightbox({
       <div className="flex flex-wrap items-center justify-center gap-4" onClick={(e) => e.stopPropagation()}>
         <span className="text-xs font-semibold text-white">{image.type} · {image.platform}{image.size ? ` · ${image.size}` : ''}</span>
         <div className="flex gap-2">
-          <a href={imageProxyUrl(image.url, true)} className="rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#ef6a4c]">下载原图</a>
+          <a href={imageProxyUrl(image.url, true)} download="product-image.png" className="rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#ef6a4c]">下载原图</a>
           <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-white/25">关闭</button>
         </div>
       </div>
