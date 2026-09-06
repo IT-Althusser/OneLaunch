@@ -123,7 +123,7 @@ public class ImagePipelineService {
                 ModelRouterVisionClient.QcResult qc = "white".equalsIgnoreCase(qaScope)
                         ? visionClient.qcWhiteBackground(visionModel, image.url(), image.platform())
                         : visionClient.complianceCheck(visionModel, image.url(), image.type(), image.platform(), market);
-                ApiModels.QaRecord record = new ApiModels.QaRecord(image.type(), image.url(), qc.passed(), qc.summary(), qc.issues(), visionModel, qc.suggestedPrompt(), market, qc.complianceIssues(), image.platform());
+                ApiModels.QaRecord record = new ApiModels.QaRecord(image.type(), image.url(), qc.passed(), qc.summary(), qc.issues(), visionModel, qc.suggestedPrompt(), market, qc.complianceIssues(), image.platform(), ApiModels.QaRecord.statusFor(qc.passed()));
                 emit.accept(event("qa", record));
                 emit.accept(event("log", Map.of("text", qc.passed()
                         ? "合规 Agent：✓ " + image.type() + "检测通过（" + image.platform() + "）：" + qc.summary()
@@ -143,7 +143,7 @@ public class ImagePipelineService {
                             ModelRouterVisionClient.QcResult qc2 = "white".equalsIgnoreCase(qaScope)
                                     ? visionClient.qcWhiteBackground(visionModel, fixed.url(), image.platform())
                                     : visionClient.complianceCheck(visionModel, fixed.url(), fixed.type(), fixed.platform(), market);
-                            record = new ApiModels.QaRecord(fixed.type(), fixed.url(), qc2.passed(), qc2.summary(), qc2.issues(), visionModel, qc2.suggestedPrompt(), market, qc2.complianceIssues(), fixed.platform());
+                            record = new ApiModels.QaRecord(fixed.type(), fixed.url(), qc2.passed(), qc2.summary(), qc2.issues(), visionModel, qc2.suggestedPrompt(), market, qc2.complianceIssues(), fixed.platform(), ApiModels.QaRecord.statusFor(qc2.passed()));
                             emit.accept(event("qa", record));
                             emit.accept(event("log", Map.of("text", qc2.passed()
                                     ? "✓ 修复重试质检通过（" + image.platform() + "）：" + qc2.summary()
@@ -158,9 +158,10 @@ public class ImagePipelineService {
                 qa.add(record);
                 if (!"白底图".equals(image.type()) && !record.passed()) emit.accept(event("log", Map.of("text", "合规 Agent：" + image.platform() + " · " + image.type() + " 可到单图工作台按建议修复")));
             } catch (Exception e) {
+                // passed 保持向后兼容；status 明确表示视觉审核未完成。
                 ApiModels.QaRecord fallback = new ApiModels.QaRecord(image.type(), image.url(), true,
                         image.platform() + " · 视觉质检不可用（" + safeMessage(e) + "），建议上线前人工复检", null, null, null,
-                        request.market() == null || request.market().isBlank() ? marketForPlatform(image.platform()) : request.market(), List.of(), image.platform());
+                        request.market() == null || request.market().isBlank() ? marketForPlatform(image.platform()) : request.market(), List.of(), image.platform(), "manual_review");
                 qa.add(fallback);
                 emit.accept(event("qa", fallback));
                 emit.accept(event("log", Map.of("text", "合规 Agent：✗ " + image.type() + "检测失败，已降级人工复检：" + safeMessage(e))));

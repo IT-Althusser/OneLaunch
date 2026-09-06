@@ -108,7 +108,7 @@ export function StudioView({
   const totalSlots = Object.keys(slots).length;
   const doneCount = Object.values(slots).filter((s) => s.status === 'done').length;
   const currentQa = (result?.qa ?? []).filter((q) => Object.values(slots).some((s) => s.url === q.url));
-  const qaStats = `${doneCount} 图 · 质检 ${currentQa.filter((q) => q.model).length} · 拦截 ${currentQa.filter((q) => q.model && !q.passed).length} · 建议 ${currentQa.reduce((n, q) => n + (q.complianceIssues?.length || q.issues?.length || 0), 0)} · 待复检 ${currentQa.filter((q) => !q.model).length}`;
+  const qaStats = `${doneCount} 图 · 质检 ${currentQa.filter((q) => q.status !== 'manual_review' && q.model).length} · 拦截 ${currentQa.filter((q) => q.status === 'failed' || (q.status == null && q.model && !q.passed)).length} · 建议 ${currentQa.reduce((n, q) => n + (q.complianceIssues?.length || q.issues?.length || 0), 0)} · 待复检 ${currentQa.filter((q) => q.status === 'manual_review' || (!q.status && !q.model)).length}`;
   const currentImages = Object.entries(slots).filter(([, s]) => s.url).map(([key, s]) => ({ platform: key.split('||')[0], type: key.split('||')[1] as ImageType, url: s.url!, size: s.size ?? '' }));
 
   useEffect(() => {
@@ -481,7 +481,7 @@ function QaSummary({
           return (
           <div key={i} className="rounded-lg border border-[#e8e2d9] px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${!q.model ? 'bg-[#fdf3e2] text-[#9a6b2f]' : q.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${!q.model ? 'bg-[#e0a23c]' : q.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{!q.model ? '待人工复检' : q.passed ? '通过' : '未通过'}</span>
+              <span className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${q.status === 'manual_review' || (!q.status && !q.model) ? 'bg-[#fdf3e2] text-[#9a6b2f]' : q.status === 'passed' || (q.status == null && q.passed) ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${q.status === 'manual_review' || (!q.status && !q.model) ? 'bg-[#e0a23c]' : q.status === 'passed' || (q.status == null && q.passed) ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{q.status === 'manual_review' || (!q.status && !q.model) ? '待人工复检' : q.status === 'passed' || (q.status == null && q.passed) ? '通过' : '未通过'}</span>
               <span className="text-xs font-semibold text-[#39342e]">{q.platform} · {q.type} · {q.market}</span>
               {q.model && <span className="shrink-0 rounded-full bg-[#eee9e1] px-2 py-0.5 text-[9px] font-bold text-[#6f685e]">{q.model}</span>}
             </div>

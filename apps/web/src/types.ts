@@ -51,6 +51,8 @@ export interface QaRecord {
   type: ImageType;
   url: string;
   passed: boolean;
+  /** 审核语义状态；旧接口客户端可继续使用 passed。 */
+  status?: 'passed' | 'failed' | 'manual_review';
   comment: string;
   /** 视觉质检未通过项（降级人工复检时为空） */
   issues?: string[];

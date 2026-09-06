@@ -62,7 +62,7 @@ class PipelineRegressionTest {
         when(vision.complianceCheck(anyString(), anyString(), anyString(), anyString(), anyString())).thenThrow(new IllegalStateException("无可用视觉模型"));
         var result = service.run(request());
         assertEquals(5, result.qa().size());
-        assertTrue(result.qa().stream().allMatch(q -> q.model() == null && q.comment().contains("人工复检")));
+        assertTrue(result.qa().stream().allMatch(q -> q.passed() && "manual_review".equals(q.status()) && q.model() == null && q.comment().contains("人工复检")));
         assertEquals(1, result.detailPages().size());
     }
 
