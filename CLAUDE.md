@@ -16,7 +16,7 @@
 4. API Key 只走环境变量 `MODEL_ROUTER_API_KEY`（`apps/server/.env`），**禁止硬编码**、禁止提交到仓库。
 5. 大赛要求产品展示场景流式输出，但 Token Plan 网关实测仅支持同步调用（含图片能力），本项目全部为同步调用；`qwq` 系列必须 `stream: true`（本项目未使用 qwq）。
 6. 模型选型只用大赛 126 模型清单内的模型（本项目选型表见 `README.md` 一.2）。
-7. 所有交付文件统一放 `D:\Java\code\vibe coding\ONE`；代码最终上传 GitHub。
+7. 所有交付文件统一放 `D:\Java\code\vibe coding\ONE`；代码上传 GitCode（复赛要求；私有仓库需授权评审账号 `air__Heaven`）。
 
 ## 技术栈
 

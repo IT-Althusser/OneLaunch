@@ -208,7 +208,7 @@
                 <div class="step"><span class="dot">✓</span>Amazon 提示词组装（图类模板 + 平台风格 · 五类图各一条）<span class="st">done</span></div>
                 <div class="step"><span class="dot">✓</span>Amazon 图片生成（wan2.7-image-pro · 5 类）<span class="st">成功 5/5</span></div>
                 <div class="step"><span class="dot">✓</span>TikTok Shop 五图生成（平台差异化风格）<span class="st">成功 5/5</span></div>
-                <div class="step"><span class="dot">✓</span>白底图视觉质检（qwen3.6-plus · 背景/完整性/违规元素）<span class="st">已标注 2/2</span></div>
+                <div class="step"><span class="dot">✓</span>质检 Agent + 合规 Agent（qwen3.6-plus · 五图检测 · issues + suggestion）<span class="st">已标注 2/2</span></div>
               </div>
               <div class="profile">商品画像（AI 理解结果）
 品类：女士通勤托特包
@@ -253,7 +253,7 @@
                   <figcaption><span>白底图</span><span class="qa">质检通过</span></figcaption>
                 </figure>
               </div>
-              <div class="hint">其余图类可基于首平台套图一键本地化适配（背景 / 画面风格替换），见「图片本地化」。</div>
+              <div class="hint">单图工具工作台共七项：白底、场景、模特、对比、尺寸、本地化、合规检测；本地化支持背景场景、文字语言、模特形象。</div>
             </div>
           </div>
         </div>
@@ -314,7 +314,7 @@
             <div class="step"><span class="dot">2</span>商品画像：qwen3.7-max 构建结构化商品画像（失败时降级纯文本拼接）</div>
             <div class="step"><span class="dot">3</span>提示词组装：图类模板 + 平台风格 + 画像，五类图片各一条生成提示词</div>
             <div class="step"><span class="dot">4</span>五图生成：wan2.7-image-pro 逐类同步生成（每平台全五图，提示词按平台差异化）</div>
-            <div class="step"><span class="dot">5</span>白底图视觉质检：qwen3.6-plus 自动审核（白底/完整性/水印/违规元素），未通过项列明，支持单图重生成</div>
+            <div class="step"><span class="dot">5</span>质检 Agent + 合规 Agent：qwen3.6-plus 检测五图，输出 issues、suggestion；白底图未通过自动重试一次</div>
             <div class="step"><span class="dot">6</span>输出：多平台上架图包（含步骤状态、商品画像、质检结论、详情页草稿）</div>
           </div>
           <div class="row2" style="margin-top:12px;">

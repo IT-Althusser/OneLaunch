@@ -64,7 +64,7 @@
   <header>
     <div class="eyebrow">场景一 · AI 智能上新 · AI 商品图片生成</div>
     <h1>OneLaunch · 一键出海 — 技术架构图</h1>
-    <div class="sub">跨境 AI 商品图片生成工作台 · 六层架构 · 白底图 / 场景图 / 模特图 / 对比图 / 尺寸图 · 全部模型经阿里云百炼 Model Router API 调用</div>
+    <div class="sub">复赛版 · 2026-09-06 · React/Vite → Spring Boot → 画像 Agent → 提示词 Agent → 图片生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent → SSE/REST</div>
   </header>
 
   <figure>
@@ -136,8 +136,8 @@
         <text class="agents" x="845" y="306" text-anchor="middle" font-size="10.5">wan2.7-image-pro</text>
         <text class="agents" x="845" y="322" text-anchor="middle" font-size="10.5">每平台全五图 · 提示词按平台差异化</text>
         <rect class="agent" x="980" y="258" width="228" height="78" rx="8"></rect>
-        <text class="agentt" x="1094" y="286" text-anchor="middle" font-size="13">白底图视觉质检</text>
-        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">qwen3.6-plus 自动质检</text>
+        <text class="agentt" x="1094" y="286" text-anchor="middle" font-size="13">质检 Agent / 合规 Agent</text>
+        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">qwen3.6-plus · 五图检测 · 规则知识库</text>
         <text class="agents" x="1094" y="322" text-anchor="middle" font-size="10.5">白底图合规视觉检测</text>
       </g>
       <path class="arrow" d="M705,352 L705,368" marker-end="url(#ar)"></path>
@@ -212,7 +212,7 @@
       <path class="loop" d="M1224,679 C1236,679 1236,297 1212,297" marker-end="url(#ar)"></path>
       <text class="note" x="1232" y="492" text-anchor="middle" font-size="10" transform="rotate(90 1232 492)">质检结论 · 支持单图重生成</text>
     </svg>
-    <figcaption>图 1 · OneLaunch 技术架构：六层架构，Spring Boot 编排服务驱动五图生成流水线，全部模型经阿里云百炼 Model Router API 调用</figcaption>
+    <figcaption>图 1 · 复赛版技术架构：多智能体角色协作、规则知识库驱动合规检测，全部模型经阿里云百炼 Model Router API 同步调用</figcaption>
   </figure>
 
   <div class="legend">
