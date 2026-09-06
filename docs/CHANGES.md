@@ -1,5 +1,31 @@
 # 变更记录
 
+## 2026-09-06（复赛对齐）：演示链路、业务价值呈现与文档一致性优化
+
+- **可演示链路**：创作页保留「填入示例」入口；生成工作台展示完成计数、耗时锁定、质检汇总（图数/质检/拦截/建议/待复检），单图失败可直接重试，独立本地化、合规检测、详情页均可从窄屏工具下拉进入。
+- **多智能体呈现**：真实 SSE 角色链路按「画像 Agent → 提示词 Agent → 生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent」出现；提示词 Agent 明确为画像文本 + 平台模板，不额外增加 LLM 调用。
+- **错误与降级**：网络失败、网关 400/401/403/429、不可达图片源和 SSE 断流显示可读原因；流水线人工复检使用黄色「待人工复检」，不再伪装为通过。白底图 all/white 两种模式均保留一次自动重试；规则文件启动扫描，缺失回退并告警。
+- **演示性能决策**：全量 `qa-scope=all` 单平台真实流水线 5 图 + 5 次视觉检测耗时约 6 分 02 秒；为保留分钟级演示节奏，默认改为 `MODEL_ROUTER_QA_SCOPE=white`，完整 all 模式仍可配置启用。该耗时受网关响应影响，非固定 SLA。
+- **真实验证**：宿主 JVM 使用 `-Djava.net.preferIPv4Stack=true -Djdk.net.unixdomain.tmpdir=D:\codex-content\2026-09-06\onelaunch-audit\tmp` 后成功启动，`GET /api/health` 返回 `ok:true`；全量五图流水线返回 5 图/5 QA，规则来源日志显示 4 平台规则文件与 US 市场文件；合规独立端点 200，三维度本地化 200（1024x1024，含文字复核提醒），AI 详情页返回 Amazon 7 模块，单图返工 200（1024x1024）。
+- **窄屏验证**：Chrome 宿主浏览器在 390/768/1023px 检查合规检测、本地化、场景图、详情页，均无横向溢出；前端无页面异常。剪贴板自动写入在无权限的自动化环境中返回 false，界面已提供可读失败提示，人工浏览器权限正常时仍可复制。
+- **README ↔ UI 入口对照**：五图流式过程→创作页/生成工作台；参考图≤6→商品参考图上传；白底质检重试→质检面板/单图重试；五图合规→合规面板与合规检测工具；本地化三维度→图片本地化工具；详情页→AI 详情页工具；七个单图工具→侧栏与窄屏工具下拉；模型覆盖→模型与调用（桌面右栏/窄屏折叠）；放大下载裁切→图片卡与单图结果；示例填充→「填入示例」。
+- **工程验证**：`npm run build`、`mvn -f apps/server/pom.xml compile`、`mvn -f apps/server/pom.xml test`、`git diff --check` 均通过。新增后端回归测试覆盖 qa-scope、白底重试、规则加载/缺失回退、API 400 与网关错误可读性。
+- **已知限制**：浏览器自动化无法调用系统剪贴板时只能验证失败提示；当前未在真实 all 模式下跑双平台长流水线，以控制网关成本与演示时长。生成风格规则仍暂留代码，后续统一入规则库。
+
+## 2026-09-06（十一）：合规规则知识库与多智能体角色显性化
+
+- 新增 `ComplianceRuleLibrary` 与 `resources/compliance-rules/platform|market` 规则文件；检测提示词从知识库读取，缺失回退内置文案并告警。
+- 流水线日志与步骤显性标注画像 Agent、提示词 Agent、生成工具、质检 Agent、合规 Agent、详情页 Agent；调用顺序和网关交互不变。
+- 验证：Maven compile、npm build、git diff --check 通过。
+
+## 2026-09-06（十）：全图类跨境合规检测
+
+- 合规检测覆盖白底图、场景图、模特图、对比图、尺寸图；新增 `/api/compliance-check`，按平台规范、目标市场广告法、文字准确性和其他问题输出结构化建议。
+- 新增 `MODEL_ROUTER_QA_SCOPE=all|white` 与 SSE `qa` 事件；视觉调用或解析失败降级人工复检，不中断流水线。
+- 侧栏新增「合规检测」工作台，支持上传/链接、图类与市场选择、问题明细和修复提示词复制；Maven compile、npm build、git diff --check 均通过。
+- 运行时验证（宿主环境，2026-09-06）：先由 `/api/images/single` 生成网关自产 2048² 图片，再执行合规检测与本地化。`/api/compliance-check`（场景图/Amazon/US）返回 200，含 `passed`、`summary`、`issues`、`suggestedPrompt`、`complianceIssues`、`model=qwen3.6-plus` 与法律意见声明；`/api/images/localize` 的 `scene`、`text`、`model` 三维组合均返回 200，含 `appliedAspects`、文字复核 `note`、组合提示词和 1024² 结果图。
+- 旧脚本使用 Wikimedia 图片导致网关 `invalid_parameter_error: Download multimodal file timed out`（大陆不可达且图片超过视觉模型像素限制），已改为先生成网关自产图片并完整打印错误响应体。
+
 ## 2026-08-30（十三）：多平台各出完整五图 + 平台差异化出图
 
 - **每个平台都生成完整五图**（原策略为首平台全五图、其余平台只出白底主图适配版）：后端流水线平台循环统一使用 `IMAGE_TYPES`，图片调用次数 = 平台数 × 5；每平台白底图各做一次视觉质检；前端 `imageTypesForPlatform` 同步改为每平台五槽位，生成工作台每个平台区都渲染完整五图网格。
@@ -137,3 +163,8 @@
 - 后端迁移为 Java 21 + Spring Boot 3.4.1 + Spring AI 1.0.3；根命令改为 `npm run dev:server`（Maven）与 `npm run build`。
 - Java API 保持 `/api/health`、`/api/images/set`、`/api/images/single`、`/api/images/localize`、`/api/tasks/:taskId` 契约。
 - 迁移验证：Maven 构建成功；当前本机 JDK 25 启动时被 loopback selector 限制，Token Plan 图片端点直接返回 400 `url error`，尚未得到真实图片 URL。
+# 2026-09-06（九）：图片本地化三维度
+
+- 支持背景场景、文字语言、模特形象三维度组合，新增目标语言与模特形象参数；旧请求默认场景维度。
+- 返回生效维度与文字复核提醒，前端新增维度、语言和模特选择。
+- 验证：后端 compile、前端 build 均通过；未执行真实网关冒烟（未读取 API Key）。

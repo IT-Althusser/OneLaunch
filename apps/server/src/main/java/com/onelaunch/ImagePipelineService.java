@@ -3,6 +3,7 @@ package com.onelaunch;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -21,6 +22,10 @@ public class ImagePipelineService {
     private final ChatClient chatClient;
     private final ModelRouterImageClient imageClient;
     private final ModelRouterVisionClient visionClient;
+    @Value("${model-router.qa-scope}") private String qaScope;
+    @Value("${model-router.text-model}") private String defaultTextModel;
+    @Value("${model-router.image-model}") private String defaultImageModel;
+    @Value("${model-router.edit-model}") private String defaultEditModel;
 
     public ImagePipelineService(ChatClient chatClient, ModelRouterImageClient imageClient, ModelRouterVisionClient visionClient) {
         this.chatClient = chatClient;
@@ -54,23 +59,23 @@ public class ImagePipelineService {
         String profile;
         if (!productName.isBlank() || !sellingPoints.isBlank()) {
             try {
-                emit.accept(event("log", Map.of("text", "正在构建商品画像（文本模型：" + blankToDefault(request.textModel(), "默认 qwen3.7-max") + "）…")));
+                emit.accept(event("log", Map.of("text", "画像 Agent：构建商品画像（文本模型：" + blankToDefault(request.textModel(), defaultTextModel) + "）…")));
                 profile = chat(profilePrompt(productName, sellingPoints, refs.size()), request.textModel());
                 if (profile == null || profile.isBlank()) throw new IllegalStateException("商品画像为空");
                 // 画像会拼进图片提示词：剥掉 markdown 加粗，避免 ** 符号污染生成提示词
                 profile = profile.replace("**", "");
-                steps.add(new ApiModels.StepRecord("商品图理解", "done", null));
-                emit.accept(event("log", Map.of("text", "商品画像完成")));
+                steps.add(new ApiModels.StepRecord("画像 Agent · 商品图理解", "done", null));
+                emit.accept(event("log", Map.of("text", "画像 Agent：商品画像完成")));
                 emit.accept(event("profile", Map.of("text", profile)));
             } catch (Exception e) {
                 profile = "商品：" + productName + "；卖点：" + sellingPoints;
-                steps.add(new ApiModels.StepRecord("商品图理解", "failed", "已降级为纯文本画像：" + safeMessage(e)));
-                emit.accept(event("log", Map.of("text", "商品画像失败，已降级为纯文本画像：" + safeMessage(e))));
+                steps.add(new ApiModels.StepRecord("画像 Agent · 商品图理解", "failed", "已降级为纯文本画像：" + safeMessage(e)));
+                emit.accept(event("log", Map.of("text", "画像 Agent：失败，已降级为纯文本画像：" + safeMessage(e))));
             }
         } else {
             profile = "商品以参考图为准（未提供文字信息），生成时严格保持参考图商品外观一致";
-            steps.add(new ApiModels.StepRecord("商品图理解", "skipped", "无文字信息，按参考图生成"));
-            emit.accept(event("log", Map.of("text", "未提供文字信息，跳过画像步骤，直接按参考图生成")));
+            steps.add(new ApiModels.StepRecord("画像 Agent · 商品图理解", "skipped", "无文字信息，按参考图生成"));
+            emit.accept(event("log", Map.of("text", "画像 Agent：未提供文字信息，跳过画像，按参考图生成")));
         }
 
         for (String platform : platforms) {
@@ -78,10 +83,13 @@ public class ImagePipelineService {
             int ok = 0;
             for (String type : types) {
                 String prompt = buildPrompt(type, productName, profile, platform, refs);
-                String route = refs.isEmpty() ? "文生图模型：" + blankToDefault(request.imageModel(), "默认 wan2.7-image-pro")
-                        : "图生图模型：" + blankToDefault(request.editModel(), "默认 qwen-image-2.0") + "（参考 " + refs.size() + " 张图）";
-                emit.accept(event("log", Map.of("text", "正在设计" + platform + "·" + type + "提示词，调用" + route + "…")));
+                String route = refs.isEmpty() ? "文生图模型：" + blankToDefault(request.imageModel(), defaultImageModel)
+                        : "图生图模型：" + blankToDefault(request.editModel(), defaultEditModel) + "（参考 " + refs.size() + " 张图）";
+                emit.accept(event("log", Map.of("text", "提示词 Agent：为 " + platform + " · " + type + " 组装提示词；" + route + "…")));
                 emit.accept(event("image_start", Map.of("type", type, "platform", platform, "prompt", prompt)));
+                steps.add(new ApiModels.StepRecord("提示词 Agent · " + platform + " " + type, "done", "画像与平台模板组合"));
+                String generationModel = refs.isEmpty() ? blankToDefault(request.imageModel(), defaultImageModel) : blankToDefault(request.editModel(), defaultEditModel);
+                emit.accept(event("log", Map.of("text", "生成工具：" + generationModel + " 开始生成 " + platform + " · " + type)));
                 try {
                     ModelRouterImageClient.ImageResult result = refs.isEmpty()
                             ? imageClient.generateImage(prompt, request.imageModel())
@@ -90,34 +98,39 @@ public class ImagePipelineService {
                         ApiModels.GeneratedImage image = new ApiModels.GeneratedImage(type, platform, result.size(), result.urls().get(0));
                         images.add(image);
                         ok++;
-                        emit.accept(event("log", Map.of("text", "✓ " + type + "（" + platform + "）已生成 · " + result.size())));
+                        emit.accept(event("log", Map.of("text", "生成工具：" + generationModel + " 出图；✓ " + type + "（" + platform + "）· " + result.size())));
                         emit.accept(event("image_done", Map.of("type", type, "platform", platform,
                                 "size", result.size(), "url", result.urls().get(0), "prompt", prompt)));
                     }
                 } catch (Exception e) {
-                    steps.add(new ApiModels.StepRecord(platform + " " + type + "生成", "failed", safeMessage(e)));
+                    steps.add(new ApiModels.StepRecord("生成工具 · " + platform + " " + type, "failed", safeMessage(e)));
                     emit.accept(event("log", Map.of("text", "✗ " + type + "（" + platform + "）生成失败：" + safeMessage(e))));
                     emit.accept(event("image_fail", Map.of("type", type, "platform", platform, "error", safeMessage(e))));
                 }
             }
-            steps.add(new ApiModels.StepRecord(platform + " 图片生成（" + types.size() + " 类）", ok > 0 ? "done" : "failed", "成功 " + ok + "/" + types.size()));
+            steps.add(new ApiModels.StepRecord("生成工具 · " + platform + " 图片生成（" + types.size() + " 类）", ok > 0 ? "done" : "failed", "成功 " + ok + "/" + types.size()));
         }
 
         // 白底图质检：视觉模型自动审核；未通过时给出修复提示词样例并自动重试一次；调用或解析失败降级为人工复检提醒
         String visionModel = blankToDefault(request.visionModel(), visionClient.defaultModel());
         for (int idx = 0; idx < images.size(); idx++) {
             ApiModels.GeneratedImage image = images.get(idx);
-            if (!"白底图".equals(image.type())) continue;
-            emit.accept(event("log", Map.of("text", "视觉质检白底图（" + visionModel + "）：" + image.platform() + " …")));
+            if ("white".equalsIgnoreCase(qaScope) && !"白底图".equals(image.type())) continue;
+            emit.accept(event("log", Map.of("text", "质检 Agent：准备检测 " + image.platform() + " · " + image.type() + "（" + visionModel + "）…")));
             try {
-                ModelRouterVisionClient.QcResult qc = visionClient.qcWhiteBackground(visionModel, image.url(), image.platform());
-                ApiModels.QaRecord record = new ApiModels.QaRecord(image.type(), image.url(), qc.passed(), qc.summary(), qc.issues(), visionModel, qc.suggestedPrompt());
+                String market = request.market() == null || request.market().isBlank() ? marketForPlatform(image.platform()) : request.market();
+                emit.accept(event("log", Map.of("text", "合规 Agent：" + ("white".equalsIgnoreCase(qaScope) ? "白底兼容质检（不含市场广告法）" : "按 " + image.platform() + " 平台规则 + " + market + " 市场广告法检测；来源：" + visionClient.ruleSource(image.platform(), market)))));
+                ModelRouterVisionClient.QcResult qc = "white".equalsIgnoreCase(qaScope)
+                        ? visionClient.qcWhiteBackground(visionModel, image.url(), image.platform())
+                        : visionClient.complianceCheck(visionModel, image.url(), image.type(), image.platform(), market);
+                ApiModels.QaRecord record = new ApiModels.QaRecord(image.type(), image.url(), qc.passed(), qc.summary(), qc.issues(), visionModel, qc.suggestedPrompt(), market, qc.complianceIssues(), image.platform());
+                emit.accept(event("qa", record));
                 emit.accept(event("log", Map.of("text", qc.passed()
-                        ? "✓ 白底图质检通过（" + image.platform() + "）：" + qc.summary()
-                        : "△ 白底图质检未通过（" + image.platform() + "）：" + String.join("；", qc.issues()))));
+                        ? "合规 Agent：✓ " + image.type() + "检测通过（" + image.platform() + "）：" + qc.summary()
+                        : "合规 Agent：△ " + image.type() + "检测未通过（" + image.platform() + "）：" + String.join("；", qc.issues()))));
 
                 // 未通过且有修复提示词样例：自动按样例重试一次，二次质检结果为准
-                if (!qc.passed() && qc.suggestedPrompt() != null && !qc.suggestedPrompt().isBlank()) {
+                if ("白底图".equals(image.type()) && !qc.passed() && qc.suggestedPrompt() != null && !qc.suggestedPrompt().isBlank()) {
                     emit.accept(event("log", Map.of("text", "质检未通过，已生成符合规范的修复提示词，自动重试一次…")));
                     try {
                         ModelRouterImageClient.ImageResult retry = imageClient.generateImage(qc.suggestedPrompt(), request.imageModel());
@@ -127,26 +140,35 @@ public class ImagePipelineService {
                             emit.accept(event("image_done", Map.of("type", fixed.type(), "platform", fixed.platform(),
                                     "size", fixed.size(), "url", fixed.url(), "prompt", qc.suggestedPrompt())));
                             emit.accept(event("log", Map.of("text", "修复重试已生成（" + fixed.size() + "），二次质检中…")));
-                            ModelRouterVisionClient.QcResult qc2 = visionClient.qcWhiteBackground(visionModel, fixed.url(), image.platform());
-                            record = new ApiModels.QaRecord(fixed.type(), fixed.url(), qc2.passed(), qc2.summary(), qc2.issues(), visionModel, qc2.suggestedPrompt());
+                            ModelRouterVisionClient.QcResult qc2 = "white".equalsIgnoreCase(qaScope)
+                                    ? visionClient.qcWhiteBackground(visionModel, fixed.url(), image.platform())
+                                    : visionClient.complianceCheck(visionModel, fixed.url(), fixed.type(), fixed.platform(), market);
+                            record = new ApiModels.QaRecord(fixed.type(), fixed.url(), qc2.passed(), qc2.summary(), qc2.issues(), visionModel, qc2.suggestedPrompt(), market, qc2.complianceIssues(), fixed.platform());
+                            emit.accept(event("qa", record));
                             emit.accept(event("log", Map.of("text", qc2.passed()
                                     ? "✓ 修复重试质检通过（" + image.platform() + "）：" + qc2.summary()
                                     : "△ 修复重试仍未完全通过（" + image.platform() + "）：" + String.join("；", qc2.issues()) + "，可到单图工作台继续调整")));
                         }
                     } catch (Exception re) {
+                        images.set(idx, image);
+                        emit.accept(event("image_done", Map.of("type", image.type(), "platform", image.platform(), "size", image.size(), "url", image.url(), "prompt", buildPrompt(image.type(), productName, profile, image.platform(), refs))));
                         emit.accept(event("log", Map.of("text", "✗ 修复重试失败，保留原结果：" + safeMessage(re))));
                     }
                 }
                 qa.add(record);
+                if (!"白底图".equals(image.type()) && !record.passed()) emit.accept(event("log", Map.of("text", "合规 Agent：" + image.platform() + " · " + image.type() + " 可到单图工作台按建议修复")));
             } catch (Exception e) {
-                qa.add(new ApiModels.QaRecord(image.type(), image.url(), true,
-                        image.platform() + " · 视觉质检不可用（" + safeMessage(e) + "），建议上线前人工复检", null, null, null));
-                emit.accept(event("log", Map.of("text", "✗ 白底图视觉质检失败，已降级为人工复检提醒：" + safeMessage(e))));
+                ApiModels.QaRecord fallback = new ApiModels.QaRecord(image.type(), image.url(), true,
+                        image.platform() + " · 视觉质检不可用（" + safeMessage(e) + "），建议上线前人工复检", null, null, null,
+                        request.market() == null || request.market().isBlank() ? marketForPlatform(image.platform()) : request.market(), List.of(), image.platform());
+                qa.add(fallback);
+                emit.accept(event("qa", fallback));
+                emit.accept(event("log", Map.of("text", "合规 Agent：✗ " + image.type() + "检测失败，已降级人工复检：" + safeMessage(e))));
             }
         }
-        steps.add(new ApiModels.StepRecord("白底图质检", qa.isEmpty() ? "skipped" : "done",
-                qa.isEmpty() ? null : "视觉质检 " + qa.size() + " 张，通过 " + qa.stream().filter(ApiModels.QaRecord::passed).count() + " 张"));
-        emit.accept(event("log", Map.of("text", qa.isEmpty() ? "无白底图，质检跳过" : "白底图质检完成")));
+        steps.add(new ApiModels.StepRecord("质检 Agent / 合规 Agent · 图片合规检测", qa.isEmpty() ? "skipped" : "done",
+                qa.isEmpty() ? null : "视觉质检 " + qa.stream().filter(q -> q.model() != null).count() + " 张，通过 " + qa.stream().filter(q -> q.model() != null && q.passed()).count() + " 张；人工复检 " + qa.stream().filter(q -> q.model() == null).count() + " 张"));
+        emit.accept(event("log", Map.of("text", qa.isEmpty() ? "无图片，合规检测跳过" : "图片合规检测完成")));
 
         // AI 详情页自动化：文本模型按平台规范组合图片引用与文案；失败降级为模板
         List<String> generatedTypes = images.stream().map(ApiModels.GeneratedImage::type).distinct().toList();
@@ -155,13 +177,13 @@ public class ImagePipelineService {
             final String pageName = productName.isBlank() ? "参考图商品" : productName;
             ApiModels.DetailPage page;
             try {
-                emit.accept(event("log", Map.of("text", "正在为 " + p + " 生成 AI 详情页（自动组合配图与文案）…")));
+                emit.accept(event("log", Map.of("text", "详情页 Agent：编排 " + p + " 详情页（自动组合配图与文案）…")));
                 page = aiDetailPage(p, pageName, sellingPoints, profile, generatedTypes, request.detailTone(), request.textModel());
-                steps.add(new ApiModels.StepRecord("详情页编排 · " + p, "done", "AI 组合 " + page.sections().size() + " 个模块"));
+                steps.add(new ApiModels.StepRecord("详情页 Agent · " + p, "done", "AI 组合 " + page.sections().size() + " 个模块"));
                 emit.accept(event("log", Map.of("text", "✓ " + p + " AI 详情页完成（" + page.sections().size() + " 个模块，含配图引用）")));
             } catch (Exception e) {
                 page = fallbackPage(pageName, sellingPoints, p, request.detailTone());
-                steps.add(new ApiModels.StepRecord("详情页编排 · " + p, "failed", "AI 编排失败，已降级模板：" + safeMessage(e)));
+                steps.add(new ApiModels.StepRecord("详情页 Agent · " + p, "failed", "AI 编排失败，已降级模板：" + safeMessage(e)));
                 emit.accept(event("log", Map.of("text", "✗ " + p + " AI 详情页失败，已降级为模板：" + safeMessage(e))));
             }
             detailPages.add(page);
@@ -217,17 +239,30 @@ public class ImagePipelineService {
     }
 
     /** 图片本地化：Token Plan 不支持异步任务，同步走图生图编辑并直接返回结果。 */
-    public ApiModels.GeneratedImage localize(ApiModels.LocalizeRequest request) {
+    public ApiModels.LocalizeResponse localize(ApiModels.LocalizeRequest request) {
+        ApiErrors.requireImage(request.sourceUrl());
+        String market = request.targetMarket() == null || request.targetMarket().isBlank() ? "US" : request.targetMarket();
+        if (request.aspects() != null && request.aspects().stream().anyMatch(a -> a == null || !List.of("scene", "text", "model").contains(a))) throw new IllegalArgumentException("本地化维度只支持 scene/text/model");
+        List<String> aspects = request.aspects() == null ? List.of("scene") : request.aspects().stream().distinct().toList();
+        if (aspects.isEmpty()) throw new IllegalArgumentException("至少选择一个本地化维度（scene/text/model）");
+        String language = request.targetLanguage() == null || request.targetLanguage().isBlank() ? (market.equals("日本") ? "日语" : "英语") : request.targetLanguage();
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("严格保持商品外观与未选本地化维度不变。 ");
+        if (aspects.contains("scene")) prompt.append("将背景替换为符合").append(market).append("市场审美的场景，保持商品外观、比例与光影一致。 ");
+        if (aspects.contains("text")) prompt.append("将画面中的所有文字替换为").append(language).append("，保持原有版式位置与字体风格，商品上不要添加多余文字。 ");
+        if (aspects.contains("model")) {
+            String modelProfile = blankToDefault(request.modelProfile(), "自然面孔模特");
+            if (modelProfile.startsWith("移除模特")) prompt.append("移除画面中的模特，仅保留商品，自然补全背景，保持商品位置、比例与光影一致。 ");
+            else prompt.append("将画面中的模特形象替换为符合").append(market).append("市场审美的").append(modelProfile).append("，保持姿势、构图与商品展示关系不变。 ");
+        }
+        if (request.instruction() != null && !request.instruction().isBlank()) prompt.append(request.instruction());
         ModelRouterImageClient.ImageResult result = imageClient.editImage(
-                "将这张商品图适配 %s 市场：%s".formatted(
-                        request.targetMarket() == null ? "US" : request.targetMarket(),
-                        request.instruction() == null || request.instruction().isBlank()
-                                ? "替换背景场景与文字语言以匹配当地市场审美，保持商品外观不变"
-                                : request.instruction()),
+                prompt.toString(),
                 request.sourceUrl(),
                 request.model());
         if (result.isEmpty()) return null;
-        return new ApiModels.GeneratedImage("本地化图", request.targetMarket() == null ? "US" : request.targetMarket(), result.size(), result.urls().get(0));
+        ApiModels.GeneratedImage image = new ApiModels.GeneratedImage("本地化图", market, result.size(), result.urls().get(0));
+        return new ApiModels.LocalizeResponse(image, aspects, aspects.contains("text") ? "AI 生成文字可能有小误差，请人工复核" : null, prompt.toString());
     }
 
     /**
@@ -277,10 +312,12 @@ public class ImagePipelineService {
     /** 网关模型清单按能力分组，供前端「模型与调用」面板选择。 */
     public Map<String, Object> modelCatalog() {
         List<String> ids;
+        String catalogError = "";
         try {
             ids = imageClient.listModels();
         } catch (Exception e) {
-            ids = List.of("qwen3.7-max", "wan2.7-image-pro", "qwen-image-2.0");
+            catalogError = safeMessage(e);
+            ids = List.of(defaultTextModel, defaultImageModel, defaultEditModel, visionClient.defaultModel());
         }
         List<Map<String, Object>> textToImage = new ArrayList<>();
         List<Map<String, Object>> imageToImage = new ArrayList<>();
@@ -289,17 +326,17 @@ public class ImagePipelineService {
         List<Map<String, Object>> vision = new ArrayList<>();
         for (String id : ids.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList()) {
             if (id.startsWith("wan") && id.contains("image")) {
-                textToImage.add(model(id, "wan2.7-image-pro".equals(id)));
+                textToImage.add(model(id, defaultImageModel.equals(id)));
             } else if (id.startsWith("qwen-image")) {
-                imageToImage.add(model(id, "qwen-image-2.0".equals(id)));
+                imageToImage.add(model(id, defaultEditModel.equals(id)));
             } else if (id.contains("audio")) {
                 other.add(model(id, false));
             } else {
-                text.add(model(id, "qwen3.7-max".equals(id)));
+                text.add(model(id, defaultTextModel.equals(id)));
             }
             // 视觉能力独立于文本分组：同一模型可同时供文案与质检选用（如 qwen3.6-plus）
             if (ModelRouterVisionClient.isVisionCapable(id)) {
-                vision.add(model(id, ModelRouterVisionClient.DEFAULT_VISION_MODEL.equals(id)));
+                vision.add(model(id, visionClient.defaultModel().equals(id)));
             }
         }
         return Map.of(
@@ -308,7 +345,10 @@ public class ImagePipelineService {
                 "text", text,
                 "other", other,
                 "vision", vision,
-                "visionAvailable", !vision.isEmpty());
+                "visionAvailable", !vision.isEmpty(),
+                "qaScope", qaScope,
+                "error", catalogError,
+                "defaults", Map.of("textModel", defaultTextModel, "imageModel", defaultImageModel, "editModel", defaultEditModel, "visionModel", visionClient.defaultModel()));
     }
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
@@ -378,6 +418,7 @@ public class ImagePipelineService {
     }
 
     private ApiModels.PipelineEvent event(String name, Object data) {
+        if ("log".equals(name) && data instanceof Map<?, ?> line) log.info("{}", line.get("text"));
         return new ApiModels.PipelineEvent(name, data);
     }
 
@@ -405,7 +446,7 @@ public class ImagePipelineService {
      * 平台差异化规则注入（中文，随提示词发给图片模型）：按「平台 × 图类」给出该平台独有的风格基调与合规要求，
      * 让多平台各出完整五图时图片组互不雷同、贴合各平台自身特色，而不是同一套图换平台名。
      */
-    private String platformRule(String platform, String type) {
+    public static String platformRule(String platform, String type) {
         return switch (platform) {
             case "TikTok Shop" -> switch (type) {
                 case "白底图" -> "平台合规（TikTok Shop 主图）：优先纯净白底，商品突出且完整，无文字、无水印、无道具；构图留出竖版裁切空间，主体居中偏上。";
@@ -486,6 +527,16 @@ public class ImagePipelineService {
     }
 
     private String safeMessage(Exception e) {
-        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return ApiErrors.message(e);
+    }
+
+    private String marketForPlatform(String platform) {
+        return switch (platform == null ? "" : platform) {
+            case "日本" -> "日本";
+            case "TikTok Shop", "Shopee", "东南亚" -> "东南亚";
+            case "UK" -> "UK";
+            case "欧洲", "Temu" -> "欧盟";
+            default -> "US";
+        };
     }
 }

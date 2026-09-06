@@ -67,7 +67,7 @@ export function DetailWorkbench({
     }
   }
 
-  function copyAll() {
+  async function copyAll() {
     if (!pages) return;
     const text = pages.map((p) => {
       const lines = [
@@ -79,9 +79,8 @@ export function DetailWorkbench({
       ];
       return lines.filter(Boolean).join('\n');
     }).join('\n\n———\n\n');
-    navigator.clipboard?.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { setError('复制失败，请手动选择文案复制'); }
   }
 
   return (
@@ -162,6 +161,9 @@ export function DetailWorkbench({
                 key={`${im.platform}-${im.type}`}
                 className="relative h-16 w-16 cursor-zoom-in overflow-hidden rounded-lg border border-[#e2ddd5]"
                 title="双击放大预览"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreview({ url: im.url, type: im.type, platform: im.platform, size: im.size }); } }}
                 onDoubleClick={() => setPreview({ url: im.url, type: im.type, platform: im.platform, size: im.size })}
               >
                 <img src={im.url} alt={im.type} className="h-full w-full object-cover" loading="lazy" />
@@ -206,7 +208,7 @@ export function DetailWorkbench({
         </p>
         <button type="button" onClick={generate} disabled={busy || !ready}
           className="shrink-0 rounded-xl bg-[#ef6a4c] px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">
-          {busy ? 'AI 编排中，约 10–30 秒…' : `生成详情页（${platforms.length} 个平台）→`}
+          {busy ? '详情页 Agent：编排中…' : `生成详情页（${platforms.length} 个平台）`}
         </button>
       </div>
 

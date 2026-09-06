@@ -25,10 +25,11 @@ import type {
   SlotBrief,
   WorkbenchTab,
 } from './types';
+import { IMAGE_TYPES } from './types';
 
 type Tab = WorkbenchTab;
 
-const DEFAULT_SELECTION: ModelSelection = { imageModel: 'wan2.7-image-pro', editModel: 'qwen-image-2.0', textModel: 'qwen3.7-max', visionModel: 'qwen3.6-plus' };
+const DEFAULT_SELECTION: ModelSelection = { imageModel: '', editModel: '', textModel: '', visionModel: '' };
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('create');
@@ -39,7 +40,7 @@ export default function App() {
   const [studioInput, setStudioInput] = useState<ImagePipelineInput | null>(null);
   const [studioKey, setStudioKey] = useState(0);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
-  const [toolPage, setToolPage] = useState<{ type: SideToolType; slotKey: string | null; platform: string; promptOverride?: string; seq: number } | null>(null);
+  const [toolPage, setToolPage] = useState<{ type: SideToolType; slotKey: string | null; platform: string; source?: SlotBrief; promptOverride?: string; seq: number } | null>(null);
   const [slotIndex, setSlotIndex] = useState<Record<string, SlotBrief>>({});
   const [slotUpdate, setSlotUpdate] = useState<{ key: string; image: GeneratedImage; prompt: string; seq: number } | null>(null);
 
@@ -49,19 +50,20 @@ export default function App() {
       .then((c) => {
         setCatalog(c);
         // 网关清单可用时，把选择校准到真实存在的模型（默认项优先已验证）
-        setSelection((prev) => ({
+        setSelection((previous) => { const prev = c.defaults ?? previous; return ({
           imageModel: pickModel(c.textToImage, prev.imageModel),
           editModel: pickModel(c.imageToImage, prev.editModel),
           textModel: pickModel(c.text, prev.textModel),
           visionModel: pickModel(c.vision, prev.visionModel),
-        }));
+        }); });
       })
-      .catch(() => setCatalog(null));
+      .catch((e: Error) => setError(e.message));
   }, []);
 
   function handleSubmit(input: ImagePipelineInput) {
     setError('');
     setStudioInput(input);
+    setSlotIndex({});
     setStudioKey((k) => k + 1);
     setTab('studio');
   }
@@ -71,9 +73,10 @@ export default function App() {
     setError('');
     const platform = studioInput?.platforms[0] ?? 'Amazon';
     // 本地化 / AI 详情页为独立工作台，不带入生成工作台槽位
-    const key = tool === '本地化' || tool === '详情页' ? null : `${platform}||${tool}`;
+    const key = tool === '本地化' || tool === '合规检测' || tool === '详情页' ? null : `${platform}||${tool}`;
     const slot = key ? slotIndex[key] : undefined;
-    setToolPage({ type: tool as SideToolType, slotKey: slot?.key ?? null, platform: slot?.platform ?? platform, seq: Date.now() });
+    const source = tool === '本地化' || tool === '合规检测' ? Object.values(slotIndex)[0] : undefined;
+    setToolPage({ type: tool as SideToolType, slotKey: slot?.key ?? null, source, platform: slot?.platform ?? source?.platform ?? platform, seq: Date.now() });
     setTab('tool');
   }, [studioInput, slotIndex]);
 
@@ -94,7 +97,7 @@ export default function App() {
     <div className="flex min-h-screen bg-[#f4f1eb] text-[#17202b]">
       <Sidebar apiOk={apiOk} tab={tab} activeTool={tab === 'tool' && toolPage ? toolPage.type : ''} onNavigate={setTab} onOpenTool={handleOpenTool} />
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-[88px] shrink-0 items-center justify-between gap-6 border-b border-[#e2ddd5] bg-[#fffdf9] px-6 py-5 lg:px-10">
+        <header className="flex min-h-[88px] shrink-0 flex-wrap items-center justify-between gap-4 border-b border-[#e2ddd5] bg-[#fffdf9] px-5 py-5 lg:px-10">
           <div>
             <div className="eyebrow mb-2">OneLaunch / Image studio</div>
             <h1 className="text-[24px] font-semibold tracking-[-0.045em] text-[#17202b] sm:text-[30px]">把新品，做成一套能上架的图。</h1>
@@ -113,19 +116,27 @@ export default function App() {
             ))}
           </nav>
         </header>
+        <nav aria-label="工具导航" className="border-b border-[#e2ddd5] bg-[#fffdf9] px-5 py-3 lg:hidden">
+          <select aria-label="选择工作台工具" className="field select-field" value={tab === 'tool' ? toolPage?.type ?? '' : ''} onChange={(e) => { if (e.target.value) handleOpenTool(e.target.value); else setTab('create'); }}>
+            <option value="">五图套图生成</option>
+            {[...IMAGE_TYPES, '本地化', '合规检测', '详情页'].map((tool) => <option key={tool} value={tool}>{tool === '详情页' ? 'AI 详情页' : tool}</option>)}
+          </select>
+        </nav>
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-5 py-7 lg:px-10 lg:py-9">
-            {tab === 'create' && (
+          <div className="min-w-0 flex-1 overflow-y-auto px-5 py-7 lg:px-10 lg:py-9">
+            <details className="panel mb-5 px-4 py-3 xl:hidden"><summary className="cursor-pointer text-sm font-semibold">模型与调用</summary><RightPanel inline catalog={catalog} selection={selection} onChange={setSelection} error={error} /></details>
+            <div className={tab === 'create' ? '' : 'hidden'}>
               <CreatePanel
                 refs={refs}
                 onAddRefs={(items) => setRefs((prev) => [...prev, ...items])}
                 onRemoveRef={(id) => setRefs((prev) => prev.filter((r) => r.id !== id))}
                 models={selection}
+                qaScope={catalog?.qaScope}
                 loading={false}
                 error={error}
                 onSubmit={handleSubmit}
               />
-            )}
+            </div>
             {/* StudioView 在任务期间保持挂载：切换 tab 只隐藏，避免 SSE 流中断或任务重跑 */}
             {studioInput && (
               <div className={tab === 'studio' ? '' : 'hidden'}>
@@ -137,7 +148,7 @@ export default function App() {
                   onSlotIndex={handleSlotIndex}
                   slotUpdate={slotUpdate}
                   onSlotUpdateConsumed={() => setSlotUpdate(null)}
-                  onNewTask={() => { setStudioInput(null); setTab('create'); }}
+                  onNewTask={() => { setStudioInput(null); setSlotIndex({}); setTab('create'); }}
                 />
               </div>
             )}
@@ -160,18 +171,19 @@ export default function App() {
                   key={`${toolPage.type}-${toolPage.slotKey ?? 'standalone'}-${toolPage.seq}`}
                   type={toolPage.type}
                   platform={toolPage.platform}
-                  current={toolPage.slotKey ? slotIndex[toolPage.slotKey] ?? null : null}
+                  current={toolPage.slotKey ? slotIndex[toolPage.slotKey] ?? null : toolPage.source ?? null}
                   promptOverride={toolPage.promptOverride}
                   models={selection}
                   onBack={() => setTab(studioInput ? 'studio' : 'create')}
                   backLabel={studioInput ? '返回生成工作台' : '返回创作工作台'}
                   onApplied={toolPage.slotKey ? (image, prompt) => setSlotUpdate({ key: toolPage.slotKey!, image, prompt, seq: Date.now() }) : undefined}
+                  onRepair={(type, platform, url, prompt) => { const existing = Object.values(slotIndex).find((slot) => slot.url === url); setToolPage({ type, platform, slotKey: existing?.key ?? null, source: existing ?? { key: '', type, platform, url, size: '', prompt }, promptOverride: prompt, seq: Date.now() }); }}
                 />
               )
             )}
-            {tab === 'studio' && !studioInput && <EmptyStudio />}
+            {tab === 'studio' && !studioInput && <EmptyStudio onCreate={() => setTab('create')} />}
           </div>
-          <RightPanel catalog={catalog} selection={selection} onChange={setSelection} />
+          <RightPanel catalog={catalog} selection={selection} onChange={setSelection} error={error} />
         </div>
       </main>
     </div>
@@ -185,13 +197,14 @@ function pickModel(options: { id: string; verified: boolean }[], current: string
   return (verified ?? options[0])?.id ?? current;
 }
 
-function EmptyStudio() {
+function EmptyStudio({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex min-h-[420px] items-center justify-center">
       <div className="max-w-sm text-center">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#e8e2d9] text-2xl text-[#8d867c]">✦</div>
         <h2 className="text-lg font-semibold text-[#39342e]">还没有进行中的任务</h2>
         <p className="mt-2 text-sm leading-relaxed text-[#8d867c]">回到创作工作台，填写商品资料或添加参考图，点击「开始生成五图」后这里会实时展示生成过程。</p>
+        <button type="button" onClick={onCreate} className="mt-4 rounded-xl bg-[#ef6a4c] px-5 py-3 text-sm font-semibold text-white hover:bg-[#d95d41]">创建图片任务</button>
       </div>
     </div>
   );

@@ -2,14 +2,16 @@
 
 ## 数据流
 
+自研 Spring Boot 事件驱动工作流编排画像 Agent、提示词 Agent、质检 Agent、合规 Agent、详情页 Agent 五个职责角色，图片生成作为工具调用嵌入；未引入独立 Agent 框架。角色不等同独立模型实例：提示词组装使用代码模板与画像文本，all 模式的质检和合规共用一次视觉请求。角色名显示在 SSE 日志与步骤中，不增加模型调用次数。
+
 ```text
 React/Vite → Spring Boot /api/images/set/stream（SSE，主流程；/api/images/set 为同步兼容）
   → 商品画像（文本模型，默认 qwen3.7-max，可按请求覆盖，/chat/completions 文本）
   → 平台化五图提示词
       ├─ 无参考图 → 文生图（wan2.7-image-pro，可覆盖）
       └─ 有参考图（URL 或 base64，≤6 张）→ 图生图（qwen-image-2.0，可覆盖，保持商品一致）
-  → 每张图实时推送 image_start / image_done / image_fail 事件
-  → 白底图视觉质检（qwen3.6-plus：内容理解与合规检测——白底合规/商品完整/水印与违规元素，输出结构化 JSON 含 issues 与修复提示词样例；未通过自动按样例重试一次并二次质检，失败降级人工复检提醒）
+  → 每张图实时推送 image_start / image_done / image_fail / qa 事件
+  → 全图类合规检测（qwen3.6-plus：平台规范、目标市场广告法、文字准确性与其他问题；qa-scope 控制 all/white，失败降级人工复检）
   → AI 详情页自动化：文本模型按平台规范（Amazon/TikTok/Temu/Shopee）组合画像+卖点+配图引用，输出结构化 JSON，失败降级模板
   → 前端：五图槽位四态（pending/running/done/failed）+ 思考日志台 + 单图工作台（参考素材/文字描述/画幅裁切）+ AI 详情页图文编排
 ```
@@ -27,5 +29,11 @@ React/Vite → Spring Boot /api/images/set/stream（SSE，主流程；/api/image
 每个目标平台均生成全部五类图片（图片调用次数 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化规则（`platformRule`：每平台独有的构图、氛围与合规要求，如 TikTok 竖版抓拍感、Temu 参数直给、Shopee 移动端简洁、Amazon 专业棚拍），多平台图片组互不雷同。流水线逻辑集中在 `apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`。
 
 ## 容错
+
+合规检测覆盖五类图，默认 `qa-scope=white` 以白底兼容路径缩短演示等待；完整模式 `qa-scope=all` 逐图检测。SSE 通过 `qa` 事件推送单图结果，视觉调用失败降级人工复检，独立检测入口始终覆盖全部五类图。
+
+合规检测由规则知识库驱动：`ComplianceRuleLibrary` 启动扫描 `resources/compliance-rules/platform/*.md` 与 `market/*.md`，剥离 HTML 来源注释并缓存到不可变 Map；目前平台 4 文件、市场 5 文件。英文名称转小写并将空格换为连字符作为文件名，中文市场使用既有别名（日本→japan、欧洲/欧盟→eu、东南亚→sea）。增加匹配名称的规则文件、重新构建并重启即可加载；新增前端可选市场/平台仍需同步界面选项。文件缺失、空文件或加载失败均记录告警，回退通用文案，未知市场不会误用 US 规则。SSE 合规日志显示文件来源或兜底状态。五图生成风格规则暂留代码，后续统一入库，再演进为规则与案例向量知识库 + RAG。
+
+白底图在 all/white 模式均最多重试一次，二次审核沿用相同范围；重试异常时恢复原图及原质检记录。非白底图失败不自动重生成。`qa` 事件含 platform，前端按平台与图类更新记录，重试不会重复计数。人工复检的旧响应保留 passed=true 兼容标记，但 model=null 表示未完成审核，界面显示黄色待复检；返工后的旧图审核不再用于新图。
 
 任一步骤失败会记录到 `steps`、以 `image_fail`/`log` 事件推给前端并继续流水线；画像和详情页均有降级结果。商品画像失败降级为纯文本拼接；无文字信息且只有参考图时跳过画像直接按参考图生成；白底图视觉质检失败（调用/解析异常或网关暂无可用视觉模型）降级为人工复检提醒而不是质检结论。外部调用错误由 `ModelRouterImageClient` / `ModelRouterVisionClient` / `TokenPlanChatModel` 统一转换为可读异常，前端槽位与日志台展示完整错误信息。

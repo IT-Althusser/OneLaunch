@@ -48,23 +48,27 @@ export function RightPanel({
   catalog,
   selection,
   onChange,
+  inline = false,
+  error = '',
 }: {
   catalog: ModelCatalog | null;
   selection: ModelSelection;
   onChange: (next: ModelSelection) => void;
+  inline?: boolean;
+  error?: string;
 }) {
   return (
-    <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-[#e2ddd5] bg-[#f8f5ef] px-5 py-7 xl:block">
+    <aside className={inline ? 'py-4' : 'hidden w-[300px] shrink-0 overflow-y-auto border-l border-[#e2ddd5] bg-[#f8f5ef] px-5 py-7 xl:block'}>
       <div className="sticky top-0">
         <header className="mb-5">
           <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">03</span>模型与调用</h2>
-          <p className="mt-1 text-xs text-[#8d867c]">{catalog ? `网关在线 · ${catalog.textToImage.length + catalog.imageToImage.length} 个图片模型可用` : '正在读取网关模型清单…'}</p>
+          <p className="mt-1 break-words text-xs text-[#8d867c]">{catalog?.error || error || (catalog ? `网关在线 · ${catalog.textToImage.length + catalog.imageToImage.length} 个图片模型可用` : '正在读取网关模型清单…')}</p>
         </header>
 
         {catalog ? (
           <div className="space-y-5">
             <Select
-              id="model-image"
+              id={`${inline ? 'compact-' : ''}model-image`}
               label="图片生成 · 通义万相"
               hint="文生图"
               options={catalog.textToImage}
@@ -72,7 +76,7 @@ export function RightPanel({
               onChange={(id) => onChange({ ...selection, imageModel: id })}
             />
             <Select
-              id="model-edit"
+              id={`${inline ? 'compact-' : ''}model-edit`}
               label="参考图 / 编辑 · Qwen-Image"
               hint="图生图"
               options={catalog.imageToImage}
@@ -80,7 +84,7 @@ export function RightPanel({
               onChange={(id) => onChange({ ...selection, editModel: id })}
             />
             <Select
-              id="model-text"
+              id={`${inline ? 'compact-' : ''}model-text`}
               label="文案生成 · Qwen 系列"
               hint="画像 / 提示词"
               options={catalog.text}
@@ -91,15 +95,15 @@ export function RightPanel({
             {catalog.visionAvailable && catalog.vision.length > 0 ? (
               <div className="space-y-2">
                 <Select
-                  id="model-vision"
-                  label="白底图质检 · 视觉模型"
+                  id={`${inline ? 'compact-' : ''}model-vision`}
+                  label="质检与合规检测 · 视觉模型"
                   hint="内容理解与合规"
                   options={catalog.vision}
                   value={selection.visionModel}
                   onChange={(id) => onChange({ ...selection, visionModel: id })}
                 />
                 <p className="text-[11px] leading-relaxed text-[#9a9389]">
-                  白底图生成后自动视觉质检：白底纯净度、商品完整性、水印与违规元素检测，未通过项列明细。
+                  {catalog.qaScope === 'white' ? '当前仅白底图质检；其他图可到合规检测工作台检查。' : '当前检测全部五类图，按平台与目标市场列出问题及修改建议。'}
                 </p>
               </div>
             ) : (
@@ -108,12 +112,12 @@ export function RightPanel({
                   <span className="text-xs font-semibold text-[#7a6a4f]">视觉模型 · 内容理解与合规检测</span>
                   <span className="rounded-full bg-[#f3e8d2] px-2 py-0.5 text-[9px] font-bold text-[#9a7b3f]">不可用</span>
                 </div>
-                <p className="mt-1 text-[11px] leading-relaxed text-[#9a8a68]">网关清单暂无可用视觉模型，白底图质检降级为人工复检提醒。</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-[#9a8a68]">网关清单暂无可用视觉模型，合规检测降级为人工复检提醒。</p>
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-3" aria-hidden>
+          <div className="space-y-3" aria-hidden hidden={Boolean(error)}>
             {[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-[#eee9e1]" />)}
           </div>
         )}

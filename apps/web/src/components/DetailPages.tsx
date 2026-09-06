@@ -28,7 +28,7 @@ export function DetailPages({ pages, images }: { pages: DetailPage[]; images: Ge
                   : undefined;
                 const imageRight = i % 2 === 1;
                 return (
-                  <div key={`${section.type}-${i}`} className={`flex gap-3 rounded-xl border border-[#eee8df] bg-[#f8f5ef] p-3 ${image && imageRight ? 'flex-row-reverse' : ''}`}>
+                  <div key={`${section.type}-${i}`} className={`flex flex-col gap-3 border-t border-[#eee8df] py-3 ${image && imageRight ? 'sm:flex-row-reverse' : 'sm:flex-row'}`}>
                     {image && (
                       <div className="relative shrink-0">
                         <img
@@ -37,6 +37,9 @@ export function DetailPages({ pages, images }: { pages: DetailPage[]; images: Ge
                           loading="lazy"
                           className="h-24 w-24 cursor-zoom-in rounded-lg border border-[#e2ddd5] object-cover"
                           title="双击放大预览"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreview({ url: image.url, type: section.imageType ?? '', platform: page.platform, size: image.size }); } }}
                           onDoubleClick={() => setPreview({ url: image.url, type: section.imageType ?? '', platform: page.platform, size: image.size })}
                         />
                         <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-0.5 text-[8px] font-bold text-white">{section.imageType}</span>

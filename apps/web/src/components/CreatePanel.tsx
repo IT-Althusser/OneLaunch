@@ -9,6 +9,7 @@ export function CreatePanel({
   onAddRefs,
   onRemoveRef,
   models,
+  qaScope,
   loading,
   error,
   onSubmit,
@@ -17,6 +18,7 @@ export function CreatePanel({
   onAddRefs: (items: ReferenceImage[]) => void;
   onRemoveRef: (id: string) => void;
   models: ModelSelection;
+  qaScope?: 'all' | 'white';
   loading: boolean;
   error: string;
   onSubmit: (input: ImagePipelineInput) => void;
@@ -24,6 +26,7 @@ export function CreatePanel({
   const [productName, setProductName] = useState('');
   const [sellingPoints, setSellingPoints] = useState('');
   const [platforms, setPlatforms] = useState<string[]>(['Amazon']);
+  const [market, setMarket] = useState('US');
   const [detailTone, setDetailTone] = useState<ImagePipelineInput['detailTone']>('专业可信');
   const [localError, setLocalError] = useState('');
 
@@ -48,6 +51,7 @@ export function CreatePanel({
       editModel: models.editModel,
       textModel: models.textModel,
       visionModel: models.visionModel,
+      market,
     });
   }
 
@@ -79,11 +83,15 @@ export function CreatePanel({
               <input id="product-name" className="field" value={productName} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductName(e.target.value)} placeholder="例如：轻量通勤托特包；有参考图时可留空" />
             </div>
             <div>
-              <label htmlFor="selling-points" className="mb-1.5 block text-xs font-semibold text-[#514b43]">商品卖点 {hasRefs ? '' : <span className="text-[#ef6a4c]">*</span>}</label>
+              <label htmlFor="target-market" className="mb-1.5 block text-xs font-semibold text-[#514b43]">合规检测目标市场</label>
+              <select id="target-market" className="field" value={market} onChange={(e) => setMarket(e.target.value)}><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select>
+            </div>
+            <div>
+              <label htmlFor="selling-points" className="mb-1.5 block text-xs font-semibold text-[#514b43]">商品卖点（可选）</label>
               <textarea id="selling-points" className="field min-h-[92px] resize-y" value={sellingPoints} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setSellingPoints(e.target.value)} placeholder="例如：防泼水、能装 15 寸电脑、380g 轻量。有参考图时可选，AI 会结合参考图自行提炼。" />
             </div>
             <div>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[#514b43]">发布到哪里？<span className="text-[#ef6a4c]">*</span></span>
                 <span className="text-[11px] text-[#a49d92]">每个平台均生成完整五图，按平台规范差异化出图</span>
               </div>
@@ -118,7 +126,7 @@ export function CreatePanel({
       {/* 提交条 */}
       <div className="panel flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-lg text-xs leading-relaxed text-[#8d867c]">
-          调用计划：文本 1 次（{models.textModel || '默认 qwen3.7-max'}）· 图片 {platforms.length * 5} 次{hasRefs ? '图生图' : '文生图'}（每平台五图，{hasRefs ? models.editModel || '默认 qwen-image-2.0' : models.imageModel || '默认 wan2.7-image-pro'}）· 视觉质检 {platforms.length} 次（{models.visionModel || '默认 qwen3.6-plus'}）· 过程实时可见，单图可重新生成
+          调用计划：画像与详情页文本 {platforms.length + (productName.trim() || sellingPoints.trim() ? 1 : 0)} 次 · 图片 {platforms.length * 5} 次{hasRefs ? '图生图' : '文生图'} · {qaScope === 'white' ? '白底图质检' : '全图合规检测'} {platforms.length * (qaScope === 'white' ? 1 : 5)} 次（白底图必要时追加一次修复与复检）
         </p>
         <button type="submit" disabled={loading || !ready}
           className="rounded-xl bg-[#ef6a4c] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">

@@ -44,10 +44,11 @@
 | `image_start` | `{type, platform, prompt}` | 单图开始生成（含本次提示词） |
 | `image_done` | `{type, platform, size, url, prompt}` | 单图完成 |
 | `image_fail` | `{type, platform, error}` | 单图失败（含网关错误信息） |
+| `qa` | 单条 `QaRecord` | 单图审核完成，含 platform；同平台同图类复检覆盖前一次记录 |
 | `done` | 完整 `ImagePipelineResponse` | 任务结束 |
 | `fatal` | `{error}` | 流程级异常 |
 
-质检记录（`qa[]`）字段：`issues`（视觉质检未通过项明细）、`model`（执行审核的视觉模型）、`suggestedPrompt`（未通过时的修复提示词样例，符合平台规范可直接重生成）。白底图质检未通过且有样例时，流水线会自动按样例重新生成一次并二次质检，二次结果为准。
+质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容，`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为中文修复建议。演示默认 `MODEL_ROUTER_QA_SCOPE=white`（每平台仅白底图质检）；设置 `MODEL_ROUTER_QA_SCOPE=all` 后为完整模式（每平台五次初检）；`white` 仅每平台一次白底兼容质检，不含市场广告法。两种模式下白底图未通过且有建议均自动重试一次、按相同模式二次审核，其余图不自动重生成。人工复检保留旧 passed=true，但 model=null，客户端必须显示待复检而非通过；白底兼容路径的 complianceIssues 为空数组，使用 issues 文本列表。
 
 ### 模型清单
 
@@ -67,7 +68,13 @@
 
 ### 图片本地化
 
-`POST /api/images/localize`，参数为 `sourceUrl`、`targetMarket`、`instruction`（可选 `model`），同步执行图生图编辑，返回 `{ image: GeneratedImage }`（type 为 `本地化图`）。
+`POST /api/images/localize` 支持 `sourceUrl`、`targetMarket`、`instruction`、`aspects`、`targetLanguage`、`modelProfile`，返回 `{ image, appliedAspects, note, prompt }`。
+
+aspects 省略默认 `["scene"]`，显式空数组或非法值返回 400。目标市场默认 US；目标语言未指定时日本→日语，其余→英语。instruction 为可选附加要求，text 生效返回文字人工复核 note，modelProfile 仅在 model 生效时使用；sourceUrl 必须是 http(s) 或图片 data URL，model 可覆盖默认编辑模型。
+
+`POST /api/compliance-check` 请求 `{imageUrl,imageType?,platform,market,visionModel?}`，返回 `passed`、`summary`、`issues`、`complianceIssues`、`suggestedPrompt`、`model`；图片支持公网 URL 或 `data:image/...;base64`，缺少必要参数返回可读 400。
+
+imageType 省略默认白底图；平台与市场必填。结构化问题位于 complianceIssues，issues 是兼容文本列表；summary 含“AI 辅助审查，不构成法律意见”。独立检测失败返回可读错误供用户重试，流水线检测失败则输出人工复检记录并继续。
 
 ### AI 详情页自动化（独立，不依赖五图流水线）
 
@@ -96,3 +103,4 @@
 - 图片**生成/编辑**模型的图片 part 必须用 `{type:"image", image:url}` 扁平字段（嵌套 `image_url` 返回 400）；**视觉理解模型相反**，必须用 `{type:"image_url", image_url:{url}}` 嵌套格式（URL 与 `data:image/...;base64` 均可，图片宽高须大于 10px）；图生图 `image` 字段单次可传多张（上限 6）；
 - Token Plan 模型清单（`GET /v1/models`，2026-08-30 实测 23 个）无 `vl` 字样模型，但文本档 `qwen3.6-plus` / `qwen3.6-flash`（126 清单内）实测为多模态视觉模型；`qwen3.7-max` 确认纯文本；白底图质检走 `qwen3.6-plus` 视觉质检，失败降级人工复检提示；
 - 图片尺寸由网关决定（文生图 2048×2048，图生图 1024×1024）；2026-08-30 复测：`chat/completions` 请求带 `size` 参数被网关静默忽略（仍返回默认尺寸），多平台投放画幅由前端单图工作台按 1:1 / 3:2 / 2:3 居中裁切输出。
+

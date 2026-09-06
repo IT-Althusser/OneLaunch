@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { regenerateSingle, localizeImage, imageProxyUrl } from '../api/client';
+import { regenerateSingle, localizeImage, complianceCheck, imageProxyUrl } from '../api/client';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImageLightbox } from './ImageLightbox';
-import type { GeneratedImage, ModelSelection, ReferenceImage, SideToolType } from '../types';
+import { PLATFORMS, IMAGE_TYPES, type ImageType, type ComplianceResult, type GeneratedImage, type ModelSelection, type ReferenceImage, type SideToolType } from '../types';
+import { ComplianceIssues } from './ComplianceIssues';
 
 /** 画幅选择项 */
 const ASPECTS = [
@@ -53,6 +54,7 @@ const DEFAULT_ASPECT: Partial<Record<SideToolType, AspectId>> = {
   对比图: '3:2',
   尺寸图: '1:1',
   本地化: '1:1',
+  合规检测: '1:1',
 };
 
 /** 白底图的平台主图合规提示 */
@@ -80,13 +82,14 @@ const MARKETS = ['US', 'UK', '欧洲', '日本', '东南亚'] as const;
  */
 export function ToolWorkbench({
   type,
-  platform,
+  platform: initialPlatform,
   current,
   models,
   promptOverride,
   onBack,
   backLabel,
   onApplied,
+  onRepair,
 }: {
   type: SideToolType;
   platform: string;
@@ -97,29 +100,39 @@ export function ToolWorkbench({
   onBack: () => void;
   backLabel: string;
   onApplied?: (image: GeneratedImage, prompt: string) => void;
+  onRepair: (type: ImageType, platform: string, url: string, prompt: string) => void;
 }) {
   const isLocalize = type === '本地化';
+  const isCompliance = type === '合规检测';
   const hasCurrent = Boolean(current?.url);
-  const [refs, setRefs] = useState<ReferenceImage[]>([]);
+  const [platform, setPlatform] = useState(initialPlatform);
+  const [refs, setRefs] = useState<ReferenceImage[]>(current?.url && (isLocalize || isCompliance || promptOverride) ? [{ id: 'current-image', src: current.url, name: '当前商品图', kind: 'url' }] : []);
   // 描述默认留空（placeholder 引导）；仅在外部带入明确指令（质检修复样例 / 槽位原提示词）时预填
   const [prompt, setPrompt] = useState(promptOverride || current?.prompt || '');
-  const [mode, setMode] = useState<'regen' | 'edit'>('regen');
+  const [mode, setMode] = useState<'regen' | 'edit'>(promptOverride && current?.url ? 'edit' : 'regen');
   const [market, setMarket] = useState<(typeof MARKETS)[number]>('US');
+  const [aspects, setAspects] = useState<string[]>(['scene']);
+  const [targetLanguage, setTargetLanguage] = useState('英语');
+  const [modelProfile, setModelProfile] = useState('欧美面孔模特');
+  const [complianceMarket, setComplianceMarket] = useState('US');
+  const [complianceType, setComplianceType] = useState<ImageType>('白底图');
+  const [complianceResult, setComplianceResult] = useState<ComplianceResult | null>(null);
   const [aspect, setAspect] = useState<AspectId>(DEFAULT_ASPECT[type] ?? '1:1');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ image: GeneratedImage; applied: boolean } | null>(null);
+  const [result, setResult] = useState<{ image: GeneratedImage; applied: boolean; appliedAspects?: string[]; note?: string; prompt?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [preview, setPreview] = useState<{ url: string; type: string; platform: string; size: string } | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
-  const imageMode = !isLocalize;
+  const imageMode = !isLocalize && !isCompliance;
   const useEditModel = isLocalize || mode === 'edit' || refs.length > 0;
   const activeModel = useEditModel ? models.editModel : models.imageModel;
   const aspectDef = useMemo(() => ASPECTS.find((a) => a.id === aspect)!, [aspect]);
   const displayUrl = result?.image.url ?? current?.url ?? '';
 
-  const sourceMissing = isLocalize && refs.length === 0;
-  const canGenerate = !busy && prompt.trim() !== '' && !sourceMissing && (imageMode || refs.length > 0);
+  const sourceMissing = (isLocalize || isCompliance) && refs.length === 0;
+  const canGenerate = !busy && (isCompliance || isLocalize || prompt.trim() !== '') && !sourceMissing && (mode !== 'edit' || refs.length > 0);
 
   /** 切换生成模式；基于当前图修改时默认把当前图带入源图（可更换） */
   function switchMode(id: 'regen' | 'edit') {
@@ -139,16 +152,27 @@ export function ToolWorkbench({
 
   async function generate() {
     if (!canGenerate) {
-      setError(sourceMissing ? '本地化需要先提供一张源图（上传或粘贴链接）' : '请先填写文字描述');
+      setError(sourceMissing ? '请先提供一张源图（上传或粘贴图片链接）' : '请填写文字描述并在修改模式提供源图');
       return;
     }
     setBusy(true);
     setError('');
+    setResult(null);
+    setComplianceResult(null);
     try {
-      const image = isLocalize
-        ? await localizeImage({ sourceUrl: refs[0].src, targetMarket: market, instruction: prompt.trim(), model: models.editModel })
-        : await regenerateSingle({
-            type: type as never,
+      if (isCompliance) {
+        const checked = await complianceCheck({ imageUrl: refs[0].src, imageType: complianceType, platform, market: complianceMarket, visionModel: models.visionModel });
+        setComplianceResult(checked);
+        setResult(null);
+        return;
+      }
+      if (isLocalize) {
+        const localized = await localizeImage({ sourceUrl: refs[0].src, targetMarket: market, instruction: prompt.trim(), model: models.editModel, aspects, targetLanguage, modelProfile });
+        setResult({ ...localized, applied: false });
+        return;
+      }
+      const image = await regenerateSingle({
+            type: type as ImageType,
             prompt: prompt.trim(),
             platform,
             referenceImages: mode === 'edit' || refs.length === 0 ? undefined : refs.map((r) => r.src),
@@ -195,8 +219,10 @@ export function ToolWorkbench({
           <div className="eyebrow mb-1.5">Tool workbench · {platform}</div>
           <h1 className="text-[26px] font-semibold tracking-[-0.04em] text-[#17202b]">{type} · 单图工作台</h1>
           <p className="mt-1 text-sm text-[#8d867c]">
-            {isLocalize
-              ? '上传源图，AI 替换背景场景与文字语言，适配目标市场审美。'
+            {isCompliance
+              ? '上传商品图或粘贴图片链接，检查平台规范与目标市场广告法风险。'
+              : isLocalize
+              ? '背景场景 / 文字语言 / 模特形象'
               : hasCurrent
                 ? `基于当前 ${current!.size} 成品细改：专属参考图、文字描述与投放画幅。`
                 : '独立生成一张该类型图片：参考图、文字描述与投放画幅。'}
@@ -209,15 +235,17 @@ export function ToolWorkbench({
         {/* 01 · 参考素材 / 本地化源图 */}
         <section className="panel px-5 py-5">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">01</span>{isLocalize ? '本地化源图' : mode === 'edit' ? '源图' : '参考素材'}</h2>
-            <span className="text-[10px] font-bold tracking-[0.14em] text-[#a49d92]">{isLocalize ? '必选 · 取第一张' : mode === 'edit' && refs.length > 0 ? '默认当前图 · 可更换' : refs.length > 0 ? `已添加 ${refs.length}` : '可选'}</span>
+            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">01</span>{isCompliance ? '检测对象' : isLocalize ? '本地化源图' : mode === 'edit' ? '源图' : '参考素材'}</h2>
+            <span className="text-[10px] font-bold tracking-[0.14em] text-[#a49d92]">{isCompliance || isLocalize ? '必选 · 取第一张' : mode === 'edit' && refs.length > 0 ? '默认当前图 · 可更换' : refs.length > 0 ? `已添加 ${refs.length}` : '可选'}</span>
           </header>
-          {isLocalize && refs.length > 0 && (
-            <p className="mb-2 rounded-lg bg-[#fdf8ef] px-3 py-2 text-[11px] leading-relaxed text-[#9a8a68]">将以「{refs[0].name}」为源图执行本地化；如需更换请先移除已有素材。</p>
+          {(isLocalize || isCompliance) && refs.length > 0 && (
+            <p className="mb-2 break-words rounded-lg bg-[#fdf8ef] px-3 py-2 text-[11px] leading-relaxed text-[#9a8a68]">当前源图：{refs[0].name}</p>
           )}
           <ReferenceUploader
             images={refs}
-            onAdd={(items) => setRefs((prev) => isLocalize ? [...prev, ...items].slice(0, 1) : [...prev, ...items])}
+            maxImages={isLocalize || isCompliance || mode === 'edit' ? 1 : 6}
+            disabled={busy}
+            onAdd={(items) => setRefs((prev) => (isLocalize || isCompliance) ? [...prev, ...items].slice(0, 1) : [...prev, ...items])}
             onRemove={(id) => setRefs((prev) => prev.filter((r) => r.id !== id))}
           />
         </section>
@@ -225,8 +253,7 @@ export function ToolWorkbench({
         {/* 02 · 文字描述 */}
         <section className="panel px-6 py-5">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">02</span>{isLocalize ? '改写要求' : '文字描述'}</h2>
-            <span className="text-[10px] text-[#a49d92]">点击插入，仍可继续修改</span>
+            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">02</span>{isCompliance ? '检测范围' : isLocalize ? '本地化维度' : '文字描述'}</h2>
           </header>
           {imageMode && (
             <div className="mb-3 grid max-w-[520px] grid-cols-2 gap-2">
@@ -238,14 +265,22 @@ export function ToolWorkbench({
               ))}
             </div>
           )}
-          <textarea
+          {isCompliance && <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-[#514b43]">平台<select disabled={busy} className="field mt-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label className="text-xs text-[#514b43]">目标市场<select disabled={busy} className="field mt-1" value={complianceMarket} onChange={(e) => setComplianceMarket(e.target.value)}><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select></label>
+            <label className="text-xs text-[#514b43]">图类<select disabled={busy} className="field mt-1" value={complianceType} onChange={(e) => setComplianceType(e.target.value as ImageType)}>{IMAGE_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+          </div>}
+          {isLocalize && <div className="mb-3 flex flex-wrap gap-2">{[['scene','背景场景'],['text','文字语言'],['model','模特形象']].map(([id,label]) => <button key={id} type="button" disabled={busy} aria-pressed={aspects.includes(id)} onClick={() => setAspects((p) => p.includes(id) ? p.length > 1 ? p.filter((x) => x !== id) : p : [...p,id])} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${aspects.includes(id) ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e]'}`}>{label}</button>)}</div>}
+          {!isCompliance && <label htmlFor="tool-prompt" className="mb-2 block text-xs text-[#514b43]">{isLocalize ? '附加要求（可选）' : '画面要求'}</label>}
+          {!isCompliance && <textarea
+            id="tool-prompt"
             ref={promptRef}
             className="field min-h-[150px] resize-y text-xs"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder={isLocalize ? '描述本地化要求，例如：替换为北美家庭玄关场景，文字改为英文' : '描述这张图的画面要求，例如：纯白背景，产品 15 度角摆放，底部柔和投影'}
             disabled={busy}
-          />
+          />}
           {/* 按工具特性分组的选项（点击插入提示词短语，再点移除） */}
           {imageMode && (TOOL_OPTION_GROUPS[type] ?? []).length > 0 && (
             <div className="mt-3 space-y-2">
@@ -267,10 +302,17 @@ export function ToolWorkbench({
           )}
           {/* 本地化：目标市场 */}
           {isLocalize && (
+            <>
+            {aspects.includes('text') && <label className="mt-3 block text-xs text-[#514b43]">目标语言<select disabled={busy} className="field mt-1" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}><option>英语</option><option>日语</option><option>德语</option><option>法语</option><option>西班牙语</option><option>泰语</option><option>印尼语</option></select></label>}
+            {aspects.includes('model') && <label className="mt-3 block text-xs text-[#514b43]">模特形象<select disabled={busy} className="field mt-1" value={modelProfile} onChange={(e) => setModelProfile(e.target.value)}><option>欧美面孔模特</option><option>日韩面孔模特</option><option>东南亚面孔模特</option><option>移除模特仅保留商品</option></select></label>}
+            {aspects.includes('text') && <p className="mt-3 rounded-lg bg-[#fdf8ef] px-3 py-2 text-xs text-[#9a6b2f]">AI 生成文字可能有小误差，请人工复核</p>}
+            </>
+          )}
+          {isLocalize && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span className="w-12 shrink-0 text-[10px] font-bold tracking-[0.08em] text-[#a49d92]">市场</span>
               {MARKETS.map((m) => (
-                <button key={m} type="button" onClick={() => setMarket(m)} aria-pressed={market === m} disabled={busy}
+                <button key={m} type="button" onClick={() => { setMarket(m); setTargetLanguage(m === '日本' ? '日语' : '英语'); }} aria-pressed={market === m} disabled={busy}
                   className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${market === m ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e] hover:border-[#bbb2a6]'}`}>
                   {m}
                 </button>
@@ -287,7 +329,7 @@ export function ToolWorkbench({
         </section>
 
         {/* 03 · 输出规格（通栏：画幅 + 调用模型） */}
-        <section className="panel px-6 py-5 lg:col-span-2">
+        {!isCompliance && <section className="panel px-6 py-5 lg:col-span-2">
           <header className="mb-3 flex items-baseline justify-between">
             <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">03</span>输出规格</h2>
             <span className="text-[10px] text-[#a49d92]">选择最终投放画幅</span>
@@ -309,16 +351,38 @@ export function ToolWorkbench({
               <div className="mt-1 text-[10px] leading-relaxed text-[#8d867c]">{useEditModel ? '图生图（参考图 / 当前图修改 / 本地化）' : '文生图'} · 网关固定输出方图，画幅为居中裁切输出规格。</div>
             </div>
           </div>
-        </section>
+        </section>}
       </div>
 
       {/* 结果对比 */}
+      {busy && <section className="panel slot-shimmer mt-5 px-6 py-5" role="status"><p className="text-sm text-[#514b43]">{isCompliance ? '合规 Agent：正在核查平台与市场规则…' : '生成工具：正在处理图片…'}</p><div className="mt-3 h-20 rounded-xl bg-[#eee9e1]" /></section>}
+      {isCompliance && !busy && !complianceResult && <section className="panel mt-5 px-6 py-5"><h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#ef6a4c]">03</span>检测结果</h2><p className="mt-2 text-xs text-[#6f685e]">{error ? '检测未完成，请检查错误信息后重试。' : '等待检测'}</p></section>}
+      {isCompliance && complianceResult && (
+        <section className="panel mt-5 px-6 py-5">
+          <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#ef6a4c]">03</span>检测结果</h2>
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${complianceResult.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${complianceResult.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{complianceResult.passed ? '通过' : '未通过'}</span>
+          </header>
+          <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.summary}</p>
+          <ComplianceIssues issues={complianceResult.complianceIssues ?? []} />
+          {complianceResult.suggestedPrompt && <div className="mt-3 border-t border-[#e2ddd5] pt-3">
+            <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.suggestedPrompt}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(complianceResult.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复提示词复制'); } }} className="rounded-xl border border-[#d9d3c9] px-3 py-2 text-xs">{copied ? '已复制' : '复制修复提示词'}</button>
+              <button type="button" onClick={() => onRepair(complianceType, platform, refs[0].src, complianceResult.suggestedPrompt ?? '')} className="rounded-xl bg-[#ef6a4c] px-3 py-2 text-xs font-semibold text-white hover:bg-[#d95d41]">用此建议修复</button>
+            </div>
+          </div>}
+        </section>
+      )}
       {result && (
         <section className="panel mt-5 px-6 py-5">
           <header className="mb-3 flex items-baseline justify-between">
             <h2 className="text-sm font-semibold text-[#17202b]">生成结果</h2>
             <span className="text-[10px] text-[#a49d92]">{result.image.size} · {result.image.type}</span>
           </header>
+          {result.appliedAspects && <div className="mb-3 flex flex-wrap gap-2">{result.appliedAspects.map((a) => <span key={a} className="rounded-full bg-[#fff1ed] px-3 py-1 text-xs text-[#c84f36]">{a === 'scene' ? '背景场景' : a === 'text' ? '文字语言' : '模特形象'}</span>)}</div>}
+          {result.note && <p className="mb-3 rounded-lg bg-[#fdf8ef] px-3 py-2 text-xs text-[#9a6b2f]">{result.note}</p>}
+          {result.prompt && <details className="mb-3 text-xs text-[#514b43]"><summary className="cursor-pointer">本次本地化提示词</summary><p className="mt-2 break-words">{result.prompt}</p></details>}
           <div className="flex flex-wrap items-start gap-4">
             {hasCurrent && (
               <div>
@@ -328,6 +392,9 @@ export function ToolWorkbench({
                   alt="当前图"
                   className="h-44 w-44 cursor-zoom-in rounded-xl border border-[#e2ddd5] object-cover"
                   title="双击放大预览"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreview({ url: current!.url, type, platform, size: current!.size }); } }}
                   onDoubleClick={() => setPreview({ url: current!.url, type, platform, size: current!.size })}
                 />
               </div>
@@ -340,6 +407,9 @@ export function ToolWorkbench({
                   alt="新图"
                   className="h-full w-full cursor-zoom-in object-cover"
                   title="双击放大预览"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreview({ url: result.image.url, type, platform, size: result.image.size }); } }}
                   onDoubleClick={() => setPreview({ url: result.image.url, type, platform, size: result.image.size })}
                 />
               </div>
@@ -361,12 +431,14 @@ export function ToolWorkbench({
           </div>
         </section>
       )}
-      {error && <div className="mt-5 rounded-xl border border-[#f0b7a8] bg-[#fff1ed] px-4 py-3 text-xs text-[#a44836]">{error}</div>}
+      {error && <div role="alert" className="mt-5 break-words rounded-xl border border-[#f0b7a8] bg-[#fff1ed] px-4 py-3 text-xs text-[#a44836]">{error}</div>}
 
       {/* 底部操作条 */}
       <div className="panel sticky bottom-4 mt-5 flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-xl text-xs leading-relaxed text-[#8d867c]">
-          {isLocalize
+          {isCompliance
+            ? `合规检测：检查 ${complianceMarket} 市场与 ${platform} 平台的 ${complianceType}。`
+            : isLocalize
             ? `本地化：以源图 + 改写要求调用图生图（${market} 市场审美），生成后可按 ${aspect} 画幅下载。`
             : mode === 'edit'
               ? `基于当前图修改：以当前成品为源图 + 描述改动，生成后可按 ${aspect} 画幅下载${onApplied ? '或应用回槽位' : ''}。`
@@ -376,7 +448,7 @@ export function ToolWorkbench({
         </p>
         <button type="button" onClick={generate} disabled={!canGenerate}
           className="rounded-xl bg-[#ef6a4c] px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">
-          {busy ? '正在生成，通常 20–60 秒…' : isLocalize ? `开始本地化（${market} · ${aspect}）→` : mode === 'edit' ? `基于当前图重新生成（${aspect}）→` : `开始生成（${refs.length > 0 ? `参考图 ${refs.length} 张 · 图生图` : '文生图'} · ${aspect}）→`}
+          {busy ? (isCompliance ? '正在检测…' : '正在生成…') : isCompliance ? `开始合规检测（${complianceMarket} · ${complianceType}）` : isLocalize ? `开始本地化（${market}）` : mode === 'edit' ? '基于当前图重新生成' : '开始生成'}
         </button>
       </div>
 

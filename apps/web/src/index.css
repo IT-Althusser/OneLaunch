@@ -5,7 +5,18 @@
 :root { font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif; color: #17202b; background: #f4f1eb; font-synthesis: none; text-rendering: optimizeLegibility; }
 body { margin: 0; min-width: 320px; background: #f4f1eb; }
 button, input, textarea { font: inherit; }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(239, 106, 76, 0.3); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible, [role=button]:focus-visible { outline: 3px solid rgba(239, 106, 76, 0.3); outline-offset: 2px; }
+* { letter-spacing: 0 !important; }
+button, a, p { overflow-wrap: anywhere; }
+@media (hover: none), (max-width: 1023px) {
+  .group .opacity-0 { opacity: 1; }
+  button, select { min-height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .log-line, .panel-pop { animation: none !important; }
+  .slot-shimmer::after { animation: none !important; width: 100% !important; opacity: .5; }
+  .animate-pulse { animation: none !important; }
+}
 ::selection { color: #fffaf3; background: #ef6a4c; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #c8c2b8; background-clip: padding-box; }

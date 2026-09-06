@@ -7,8 +7,6 @@ spring:
     name: onelaunch-server
 server:
   port: ${PORT:3100}
-  tomcat:
-    protocol: org.apache.coyote.http11.Http11Nio2Protocol
   error:
     include-message: always
 model-router:
@@ -19,3 +17,4 @@ model-router:
   image-model: ${MODEL_ROUTER_IMAGE_MODEL:wan2.7-image-pro}
   edit-model: ${MODEL_ROUTER_EDIT_MODEL:qwen-image-2.0}
   timeout-seconds: ${MODEL_ROUTER_TIMEOUT_SECONDS:120}
+  qa-scope: ${MODEL_ROUTER_QA_SCOPE:white}

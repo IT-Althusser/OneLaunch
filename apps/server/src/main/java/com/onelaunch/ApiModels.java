@@ -19,7 +19,8 @@ public final class ApiModels {
             /** 文本模型覆盖（可选，如 qwen3.7-max）。 */
             String textModel,
             /** 白底图视觉质检模型覆盖（可选，如 qwen3.6-plus，须具备视觉理解能力）。 */
-            String visionModel) {}
+            String visionModel,
+            String market) {}
 
     public record StepRecord(String step, String status, String detail) {}
 
@@ -29,7 +30,11 @@ public final class ApiModels {
      * 白底图质检记录：视觉质检时 model 为执行审核的视觉模型、issues 为未通过项、
      * suggestedPrompt 为未通过时的修复提示词样例；降级人工复检时 model/issues/suggestedPrompt 为 null。
      */
-    public record QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt) {}
+    public record QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform) {
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt) { this(type, url, passed, comment, issues, model, suggestedPrompt, null, List.of(), null); }
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, null); }
+    }
+    public record ComplianceCheckRequest(String imageUrl, String imageType, String platform, String market, String visionModel) {}
 
     public record DetailPageSection(
             String type,
@@ -62,7 +67,7 @@ public final class ApiModels {
             String sourceUrl,
             String model) {}
 
-    public record LocalizeRequest(String sourceUrl, String targetMarket, String instruction, String model) {}
+    public record LocalizeRequest(String sourceUrl, String targetMarket, String instruction, String model, List<String> aspects, String targetLanguage, String modelProfile) {}
 
     /** 独立 AI 详情页请求：名称与卖点至少其一；generatedTypes 为已有生成图类型集合（供 AI 引用配图），可空。 */
     public record DetailPageRequest(
@@ -74,6 +79,7 @@ public final class ApiModels {
             String textModel) {}
 
     public record ImageResponse(GeneratedImage image) {}
+    public record LocalizeResponse(GeneratedImage image, List<String> appliedAspects, String note, String prompt) {}
 
     /** 流式端点的单条事件：event 为 SSE 事件名，data 为随事件发送的负载。 */
     public record PipelineEvent(String event, Object data) {}

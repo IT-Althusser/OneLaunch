@@ -3,7 +3,7 @@ import { IMAGE_TYPES, type WorkbenchTab } from '../types';
 
 interface Tool { name: string; icon: string; tag?: string; /** 打开的单图工作台类型；空串 = 主流程入口 */ tool: string; }
 const TOOLS: Tool[] = [
-  { name: '五图套图生成', icon: '✦', tag: '主流程', tool: '' }, { name: '白底图生成', icon: '□', tool: '白底图' }, { name: '场景图生成', icon: '◒', tool: '场景图' }, { name: '模特图生成', icon: '◌', tool: '模特图' }, { name: '对比图生成', icon: '↔', tool: '对比图' }, { name: '尺寸图生成', icon: '⌗', tool: '尺寸图' }, { name: '图片本地化', icon: '⊙', tool: '本地化' }, { name: 'AI 详情页', icon: '✎', tool: '详情页' },
+  { name: '五图套图生成', icon: '✦', tag: '主流程', tool: '' }, { name: '白底图生成', icon: '□', tool: '白底图' }, { name: '场景图生成', icon: '◒', tool: '场景图' }, { name: '模特图生成', icon: '◌', tool: '模特图' }, { name: '对比图生成', icon: '↔', tool: '对比图' }, { name: '尺寸图生成', icon: '⌗', tool: '尺寸图' }, { name: '图片本地化', icon: '⊙', tool: '本地化' }, { name: '合规检测', icon: '✓', tool: '合规检测' }, { name: 'AI 详情页', icon: '✎', tool: '详情页' },
 ];
 
 /** 目录面板的跳转入口：与 App 的两个页签一一对应 */
@@ -38,7 +38,7 @@ export function Sidebar({ apiOk, tab, activeTool, onNavigate, onOpenTool }: { ap
             <div className="mb-1.5 text-[9px] font-bold tracking-[0.14em] text-[#718087]">点击图类，直达对应工作台</div>
             <div className="flex flex-wrap gap-1.5">{IMAGE_TYPES.map((t) => <button key={t} title={`打开${t}工作台`} onClick={() => { onOpenTool(t); setDirOpen(false); }} className="rounded-md bg-white/8 px-2 py-1 text-[10px] font-medium text-[#c3cdd1] transition hover:bg-[#ef6a4c] hover:text-white">{t}</button>)}</div>
           </div>
-          <p className="mt-2.5 text-[10px] text-[#8f9ba1]">按 Amazon · TikTok Shop · Temu · Shopee 规范适配，白底图附人工复检提醒。</p>
+          <p className="mt-2.5 text-[10px] text-[#8f9ba1]">按 Amazon · TikTok Shop · Temu · Shopee 规范适配，生成后附质检结果与修改建议。</p>
           <div className="my-3.5 h-px bg-white/10" />
           <div className="mb-2 text-[10px] font-bold tracking-[0.16em] text-[#718087]">DIRECTORY · 快捷跳转</div>
           <div className="space-y-1">
@@ -54,8 +54,8 @@ export function Sidebar({ apiOk, tab, activeTool, onNavigate, onOpenTool }: { ap
         </div>}
       </div>
       <div className="px-3 pb-2 text-[10px] font-bold tracking-[0.16em] text-[#718087]">CREATE</div><div className="mb-3 px-3 text-[12px] text-[#8f9ba1]">商品图片</div>
-      <div className="space-y-1">{TOOLS.map((tool) => { const active = activeTool === tool.tool; return <button key={tool.name} title={tool.tool ? `打开${tool.name.replace(/生成$/, '')}工作台` : '回到创作工作台'} aria-pressed={active} onClick={() => { if (tool.tool) onOpenTool(tool.tool); else onNavigate('create'); }} className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] transition ${active ? 'bg-[#fffaf3] font-semibold text-[#19232b] shadow-[0_8px_18px_rgba(0,0,0,.12)]' : 'text-[#b6c0c5] hover:bg-white/8 hover:text-white'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm ${active ? 'bg-[#ef6a4c] text-white' : 'bg-white/8 text-[#aab5b9]'}`}>{tool.icon}</span><span className="min-w-0 flex-1 truncate">{tool.name}</span>{tool.tag && <span className="text-[10px] text-[#ef6a4c]">{tool.tag}</span>}</button>; })}</div>
+      <div className="space-y-1">{TOOLS.map((tool) => { const active = activeTool === tool.tool; return <button key={tool.name} aria-label={tool.name} title={tool.tool ? `打开${tool.name.replace(/生成$/, '')}工作台` : '回到创作工作台'} aria-pressed={active} onClick={() => { if (tool.tool) onOpenTool(tool.tool); else onNavigate('create'); }} className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] transition ${active ? 'bg-[#fffaf3] font-semibold text-[#19232b] shadow-[0_8px_18px_rgba(0,0,0,.12)]' : 'text-[#b6c0c5] hover:bg-white/8 hover:text-white'}`}><span className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm ${active ? 'bg-[#ef6a4c] text-white' : 'bg-white/8 text-[#aab5b9]'}`}>{tool.icon}</span><span className="min-w-0 flex-1 truncate">{tool.name}</span>{tool.tag && <span className="text-[10px] text-[#ef6a4c]">{tool.tag}</span>}</button>; })}</div>
     </nav>
-    <div className="border-t border-white/10 px-6 py-5 text-[11px] leading-relaxed text-[#8f9ba1]"><div className="mb-2 flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${apiOk === false ? 'bg-[#f07d63]' : 'bg-[#8ed1a5]'}`} /><span className={apiOk === false ? 'text-[#f2a08d]' : 'text-[#a9d5b6]'}>{apiOk === false ? '后端未连接' : '服务已连接'}</span></div>OneLaunch · 场景一<br />AI 商品图片生成工作台</div>
+    <div className="border-t border-white/10 px-6 py-5 text-[11px] leading-relaxed text-[#8f9ba1]"><div className="mb-2 flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${apiOk === false ? 'bg-[#f07d63]' : 'bg-[#8ed1a5]'}`} /><span className={apiOk === false ? 'text-[#f2a08d]' : 'text-[#a9d5b6]'}>{apiOk === null ? '正在连接服务' : apiOk === false ? '后端未连接' : '服务已连接'}</span></div>OneLaunch · 场景一<br />AI 商品图片生成工作台</div>
   </aside>;
 }

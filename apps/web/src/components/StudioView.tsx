@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { streamImagePipeline, regenerateSingle, imageProxyUrl } from '../api/client';
 import { DetailPages } from './DetailPages';
 import { ImageLightbox } from './ImageLightbox';
+import { ComplianceIssues } from './ComplianceIssues';
 import {
   imageTypesForPlatform,
   type GeneratedImage,
@@ -12,6 +13,7 @@ import {
   type ModelSelection,
   type SlotBrief,
   type ThinkingLogLine,
+  type QaRecord,
 } from '../types';
 
 const slotKey = (platform: string, type: string) => `${platform}||${type}`;
@@ -105,6 +107,9 @@ export function StudioView({
 
   const totalSlots = Object.keys(slots).length;
   const doneCount = Object.values(slots).filter((s) => s.status === 'done').length;
+  const currentQa = (result?.qa ?? []).filter((q) => Object.values(slots).some((s) => s.url === q.url));
+  const qaStats = `${doneCount} 图 · 质检 ${currentQa.filter((q) => q.model).length} · 拦截 ${currentQa.filter((q) => q.model && !q.passed).length} · 建议 ${currentQa.reduce((n, q) => n + (q.complianceIssues?.length || q.issues?.length || 0), 0)} · 待复检 ${currentQa.filter((q) => !q.model).length}`;
+  const currentImages = Object.entries(slots).filter(([, s]) => s.url).map(([key, s]) => ({ platform: key.split('||')[0], type: key.split('||')[1] as ImageType, url: s.url!, size: s.size ?? '' }));
 
   useEffect(() => {
     // 任务结束（完成/失败/中断）即停表，避免「已完成」后耗时仍走动
@@ -141,6 +146,9 @@ export function StudioView({
         case 'image_fail':
           setSlots((prev) => ({ ...prev, [key]: { ...prev[key], status: 'failed', error: str(data.error, '生成失败') } }));
           break;
+        case 'qa':
+          setResult((prev) => { const record = data as unknown as QaRecord; const state = prev ?? { steps: [], images: [], qa: [] }; return { ...state, qa: [...state.qa.filter((q) => record.platform ? !(q.platform === record.platform && q.type === record.type) : q.url !== record.url), record] }; });
+          break;
         case 'done':
           setResult(data as unknown as ImagePipelineResult);
           setRunning(false);
@@ -159,6 +167,7 @@ export function StudioView({
     }).catch((e: unknown) => {
       setFatal((e as Error).message);
       setRunning(false);
+      setElapsed(Date.now() - startedAt);
       setLogs((prev) => [...prev, { text: `连接失败：${(e as Error).message}`, time: nowTime() }]);
     });
     // 流式任务与挂载一一对应，input/models 均在挂载时固定
@@ -172,7 +181,7 @@ export function StudioView({
     setLogs((prev) => [...prev, { text: sourceUrl ? `正在基于当前图修改：${editor.type}（${editor.platform}）…` : `正在重新生成：${editor.type}（${editor.platform}）…`, time: nowTime() }]);
     try {
       const image = await regenerateSingle({
-        type: editor.type as never,
+        type: editor.type as ImageType,
         prompt,
         platform: editor.platform,
         referenceImages: sourceUrl ? undefined : (refs.length > 0 ? refs : undefined),
@@ -236,10 +245,11 @@ export function StudioView({
         })()}
         <span className="text-xs font-semibold text-[#514b43]">{doneCount} / {totalSlots} 张完成</span>
         <span className="text-xs text-[#8d867c]">耗时 {formatElapsed(elapsed)}</span>
+        <span className="text-xs text-[#514b43]" aria-live="polite">{qaStats}</span>
         <span className="hidden text-xs text-[#8d867c] md:inline">
           {input.productName ? `《${input.productName}》` : '按参考图生成'} · {refs.length > 0 ? `参考图 ${refs.length} 张 · 图生图` : '无参考图 · 文生图'}
         </span>
-        <button type="button" onClick={onNewTask} className="ml-auto rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">新建任务</button>
+        <button type="button" onClick={onNewTask} disabled={running} className="ml-auto rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">新建任务</button>
       </div>
 
       {fatal && <div className="mb-5 rounded-xl border border-[#f0b7a8] bg-[#fff1ed] px-4 py-3 text-sm text-[#a44836]">{fatal}</div>}
@@ -273,10 +283,10 @@ export function StudioView({
           ))}
 
           {/* 质检摘要 */}
-          {result && result.qa.length > 0 && <QaSummary qa={result.qa} slots={slots} onFix={(slotKey, type, platform, prompt) => onOpenWorkbench?.(slotKey, type, platform, prompt)} />}
+          {currentQa.length > 0 && <QaSummary qa={currentQa} stats={qaStats} slots={slots} onFix={(slotKey, type, platform, prompt) => onOpenWorkbench?.(slotKey, type, platform, prompt)} />}
 
           {/* 详情页（AI 组合配图与文案） */}
-          {result && result.detailPages && result.detailPages.length > 0 && <DetailPages pages={result.detailPages} images={result.images} />}
+          {result && result.detailPages && result.detailPages.length > 0 && <DetailPages pages={result.detailPages} images={currentImages} />}
         </div>
 
         {/* 右：思考过程 + 画像 */}
@@ -290,7 +300,7 @@ export function StudioView({
               {logs.map((line, i) => (
                 <p key={`${line.time}-${i}`} className="log-line flex gap-2">
                   <span className="shrink-0 text-[#5d6d75]">{line.time}</span>
-                  <span className={line.text.startsWith('✓') ? 'text-[#8ed1a5]' : line.text.startsWith('✗') ? 'text-[#f2a08d]' : 'text-[#c3cdd2]'}>{line.text}</span>
+                  <span className={`min-w-0 break-words ${line.text.includes('✓') ? 'text-[#8ed1a5]' : line.text.includes('✗') ? 'text-[#f2a08d]' : 'text-[#c3cdd2]'}`}>{line.text}</span>
                 </p>
               ))}
               {running && <p className="text-[#5d6d75]">▍</p>}
@@ -393,13 +403,14 @@ function SlotCard({
         )}
         {busy && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-label="生成中" />
+            <span className="slot-shimmer h-2 w-3/5 rounded-full bg-white/40" role="status" aria-label="生成中" />
           </div>
         )}
         {status === 'running' && !hasImage && (
           <span className="absolute bottom-1.5 left-0 right-0 truncate px-2 text-center text-[9px] text-[#8d867c]">网关生成中，通常 20–60 秒</span>
         )}
       </div>
+      {status === 'failed' && !hasImage && <div className="border-t border-[#e2ddd5] p-2"><p className="mb-2 break-words text-xs text-[#a44836]">{state?.error || '生成失败，请重试'}</p><button type="button" onClick={onRegen} className="rounded-xl border border-[#d9d3c9] px-3 py-2 text-xs">重试此图</button></div>}
     </div>
   );
 }
@@ -447,41 +458,47 @@ function SlotEditor({
 
 function QaSummary({
   qa,
+  stats,
   slots,
   onFix,
 }: {
-  qa: { type: string; url: string; passed: boolean; comment: string; issues?: string[]; model?: string; suggestedPrompt?: string }[];
+  qa: QaRecord[];
+  stats: string;
   slots: Record<string, ImageSlotState>;
   onFix: (slotKey: string, type: string, platform: string, prompt: string) => void;
 }) {
   const visionQc = qa.some((q) => q.model);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copyError, setCopyError] = useState('');
   return (
     <section className="panel px-5 py-4">
-      <h2 className="mb-2 text-sm font-bold text-[#17202b]">白底图质检{visionQc ? ' · 视觉审核' : ' · 人工复检提醒'}</h2>
+      <h2 className="mb-2 text-sm font-bold text-[#17202b]">合规与质检{visionQc ? ' · 视觉审核' : ' · 人工复检提醒'}</h2>
+      <p className="mb-3 text-xs text-[#514b43]">{stats}</p>
+      {copyError && <p role="alert" className="mb-2 text-xs text-[#a44836]">{copyError}</p>}
       <div className="space-y-1.5">
         {qa.map((q, i) => {
           const slotEntry = Object.entries(slots).find(([, s]) => s.url === q.url);
           return (
           <div key={i} className="rounded-lg border border-[#e8e2d9] px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${q.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />
-              <span className="text-xs font-semibold text-[#39342e]">{q.type}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${!q.model ? 'bg-[#fdf3e2] text-[#9a6b2f]' : q.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${!q.model ? 'bg-[#e0a23c]' : q.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{!q.model ? '待人工复检' : q.passed ? '通过' : '未通过'}</span>
+              <span className="text-xs font-semibold text-[#39342e]">{q.platform} · {q.type} · {q.market}</span>
               {q.model && <span className="shrink-0 rounded-full bg-[#eee9e1] px-2 py-0.5 text-[9px] font-bold text-[#6f685e]">{q.model}</span>}
-              <span className="ml-auto truncate text-[11px] text-[#8d867c]">{q.comment}</span>
             </div>
-            {q.issues && q.issues.length > 0 && (
+            <p className="mt-2 break-words text-xs leading-relaxed text-[#6f685e]">{q.comment}</p>
+            {q.issues && q.issues.length > 0 && !q.complianceIssues?.length && (
               <ul className="mt-1.5 list-disc space-y-0.5 pl-6 text-[10px] leading-relaxed text-[#a44836]">
                 {q.issues.map((issue, j) => <li key={j}>{issue}</li>)}
               </ul>
             )}
+            <ComplianceIssues issues={q.complianceIssues ?? []} />
             {/* 未通过时给出符合规范的修复提示词样例：可复制，或一键去工作台修复 */}
             {!q.passed && q.suggestedPrompt && (
               <div className="mt-2 rounded-lg bg-[#f4f1eb] p-2.5">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">修复提示词样例 · 已按平台规范生成</span>
                   <span className="flex shrink-0 gap-1.5">
-                    <button type="button" onClick={() => { navigator.clipboard?.writeText(q.suggestedPrompt!); setCopiedIdx(i); }}
+                    <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(q.suggestedPrompt!); setCopiedIdx(i); setCopyError(''); } catch { setCopyError('复制失败，请手动选中提示词复制'); } }}
                       className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">
                       {copiedIdx === i ? '已复制 ✓' : '复制'}
                     </button>

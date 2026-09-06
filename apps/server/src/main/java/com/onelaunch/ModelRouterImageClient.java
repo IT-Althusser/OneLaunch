@@ -67,6 +67,7 @@ public class ModelRouterImageClient {
             throw new IllegalArgumentException("图生图至少需要一张参考图");
         }
         List<Map<String, Object>> parts = new ArrayList<>();
+        referenceImages.forEach(ApiErrors::requireImage);
         referenceImages.stream().limit(MAX_REFERENCE_IMAGES).forEach(url ->
                 parts.add(Map.of("type", "image", "image", url)));
         parts.add(Map.of("type", "text", "text", prompt));
@@ -83,7 +84,7 @@ public class ModelRouterImageClient {
                 .body(JsonNode.class);
         List<String> ids = new ArrayList<>();
         JsonNode data = response == null ? null : response.path("data");
-        if (data.isArray()) {
+        if (data != null && data.isArray()) {
             for (JsonNode node : data) {
                 String id = node.path("id").asText("");
                 if (!id.isBlank()) ids.add(id);

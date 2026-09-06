@@ -4,12 +4,13 @@ import type {
   GeneratedImage,
   ImagePipelineInput,
   LocalizeRequest,
+  ComplianceResult,
   ModelCatalog,
   SingleImageRequest,
 } from '../types';
 
 async function apiJson<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
+  const res = await fetchReadable(path, init);
   const text = await res.text();
   let payload: unknown = null;
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
@@ -18,6 +19,11 @@ async function apiJson<T>(path: string, init: RequestInit): Promise<T> {
     throw new Error(`后端 ${res.status}: ${message}`);
   }
   return payload as T;
+}
+
+async function fetchReadable(path: string, init: RequestInit): Promise<Response> {
+  try { return await fetch(path, init); }
+  catch { throw new Error('无法连接服务，请检查网络及后端是否启动，然后重试'); }
 }
 
 /** GET /api/models — 网关可用模型清单（按能力分组） */
@@ -33,7 +39,7 @@ export async function streamImagePipeline(
   input: ImagePipelineInput,
   onEvent: (event: string, data: Record<string, unknown>) => void,
 ): Promise<void> {
-  const res = await fetch('/api/images/set/stream', {
+  const res = await fetchReadable('/api/images/set/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -49,18 +55,23 @@ export async function streamImagePipeline(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let finished = false;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let idx: number;
-    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+    while ((idx = buffer.search(/\r?\n\r?\n/)) >= 0) {
       const raw = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+      buffer = buffer.slice(idx + (buffer[idx] === '\r' ? 4 : 2));
       const parsed = parseSseEvent(raw);
-      if (parsed) onEvent(parsed.event, parsed.data);
+      if (parsed) {
+        if (parsed.event === 'done' || parsed.event === 'fatal') finished = true;
+        onEvent(parsed.event, parsed.data);
+      }
     }
   }
+  if (!finished) throw new Error('任务连接已中断，已生成图片保留，请检查网络后新建任务重试');
 }
 
 function parseSseEvent(raw: string): { event: string; data: Record<string, unknown> } | null {
@@ -95,13 +106,17 @@ export function imageProxyUrl(url: string, download = false): string {
 }
 
 /** POST /api/images/localize — 图片本地化（同步图生图，返回 type 为「本地化图」） */
-export async function localizeImage(req: LocalizeRequest): Promise<GeneratedImage> {
-  const payload = await apiJson<{ image: GeneratedImage }>('/api/images/localize', {
+export async function localizeImage(req: LocalizeRequest): Promise<{ image: GeneratedImage; appliedAspects?: string[]; note?: string; prompt?: string }> {
+  const payload = await apiJson<{ image: GeneratedImage; appliedAspects?: string[]; note?: string; prompt?: string }>('/api/images/localize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
   });
-  return payload.image;
+  return payload;
+}
+
+export async function complianceCheck(req: { imageUrl: string; imageType?: string; platform: string; market: string; visionModel?: string }): Promise<ComplianceResult> {
+  return apiJson<ComplianceResult>('/api/compliance-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) });
 }
 
 /** POST /api/detail-page — AI 详情页自动化（独立生成，不依赖五图流水线） */

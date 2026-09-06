@@ -6,7 +6,7 @@
 
 跨境 AI 商品图片生成工作台（比赛「场景一：AI 智能上新」· 选定方向：**AI 商品图片生成**）。
 核心任务：用 AI 实现从选品到上架的自动化，将新品上架流程从数天压缩至分钟级。
-本方案只做一件事：输入商品名称与卖点，自动生成**白底图、场景图、模特图、对比图、尺寸图**，并按 **Amazon / TikTok Shop / Temu / Shopee** 的风格要求适配输出；扩展能力为图片本地化（背景/画面风格替换）。
+主选方向 1：输入商品资料与参考图，生成**白底图、场景图、模特图、对比图、尺寸图**，按 **Amazon / TikTok Shop / Temu / Shopee** 差异化出图；已实现详情页自动化、本地化三维度（背景/文字/模特）与全图类跨境合规检测。Listing 写作尚未实现。
 
 ## 硬性规则（红线，不得违反）
 
@@ -58,7 +58,9 @@ ONE/
 │           │   ├── ChatClientConfig.java       # ChatClient 装配
 │           │   ├── HttpClientConfig.java       # RestClient 超时配置
 │           │   └── ApiModels.java              # 请求/响应模型（含参考图与模型覆盖字段）
-│           └── resources/application.yml       # 端口 / Base URL / 模型 ID 集中管理
+│           └── resources/
+│               ├── application.yml             # 端口 / Base URL / 模型 ID / qa-scope
+│               └── compliance-rules/           # 合规规则知识库：platform/ 4 文件 + market/ 5 文件
 ├── 提交内容_方案概述与技术方案.md
 ├── 附加材料_架构图.html
 ├── 附加材料_业务流程图.html
@@ -105,6 +107,7 @@ MODEL_ROUTER_API_KEY=sk-xxx   # 必填，算力审核通过后发放
 # MODEL_ROUTER_IMAGE_MODEL=wan2.7-image-pro  # 可选，文生图模型
 # MODEL_ROUTER_EDIT_MODEL=qwen-image-2.0     # 可选，图生图编辑模型
 # MODEL_ROUTER_TIMEOUT_SECONDS=120           # 可选，单次调用读超时
+# MODEL_ROUTER_QA_SCOPE=all                  # 可选，all=全部图类，white=仅白底图
 ```
 
 ## Model Router 调用速查（Token Plan 实测结论，与 docx 文档有差异）
@@ -135,9 +138,11 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - `GET /api/models`：网关模型清单按能力分组（文生图/图生图/文本/视觉/其他 + `visionAvailable`；供前端「模型与调用」面板）。
 - `GET /api/image-proxy`：同源图片代理（`?url=`，`download=true` 下载），供前端画幅裁切与下载原图；仅 http(s)。
 - `POST /api/images/set`：五图 + 详情页流水线（同步；支持 `referenceImages` 参考图与 `imageModel`/`editModel`/`textModel`/`visionModel` 模型覆盖；详情页为 AI 按平台规范自动编排，失败降级模板；白底图自动视觉质检，失败降级人工复检提醒）。
-- `POST /api/images/set/stream`：同上但为 SSE 流式（事件：log / profile / image_start / image_done / image_fail / done / fatal）。
+- `POST /api/images/set/stream`：同上但为 SSE 流式（事件：log / profile / image_start / image_done / image_fail / qa / done / fatal）。
 - `POST /api/images/single`：单图生成（三分支：文生图 / referenceImages 参考图生成 / sourceUrl 基于已生成图修改），供侧栏工具工作台与槽位「重新生成 / 修改」。
-- `POST /api/images/localize`：图片本地化（同步图生图编辑，直接返回结果图）。
+- `POST /api/images/localize`：图片本地化（同步图生图编辑；支持场景/文字/模特维度、目标语言和模特形象）。
+- `POST /api/compliance-check`：单图跨境合规检测（平台规范、目标市场广告法、文字准确性与其他问题，返回结构化建议）。
+- 合规规则知识库位于 `apps/server/src/main/resources/compliance-rules/`；缺失文件回退内置文案并告警，五图生成风格规则暂留代码。
 - `POST /api/detail-page`：独立 AI 详情页自动化（不依赖五图流水线）：名称/卖点 + 平台多选 + 语气 → 画像 + 按平台 AI 组合配图引用与文案（`generatedTypes` 传已有生成图类型供引用）；AI 编排失败降级模板。供侧栏「AI 详情页」工作台调用。
 
 完整接入方式见 `docs/integration-guide.md`，运维见 `docs/runbook.md`，架构见 `docs/architecture.md`。
@@ -146,7 +151,8 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
 - **平台策略**：每个目标平台均生成全部五图（10 图 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化风格与合规规则（`platformRule`），多平台出图互不雷同、贴合各平台自身特色。
-- **降级策略**：商品画像失败降级为纯文本拼接；白底图视觉质检未通过时给出修复提示词样例并自动重试一次（二次质检结果为准），视觉质检本身失败（调用/解析异常或网关暂无可用视觉模型）才降级为生成确认 + 人工复检提醒；任一步骤失败记录到 `steps` 并继续，不中断整体流水线。
+- **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。两种模式的白底图未通过且有修复提示词时均重试一次，二次检查沿用当前范围；其他图仅输出建议。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
+- **角色分工**：画像 Agent → 提示词 Agent → 生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent；五个职责角色由 Spring Boot 编排，提示词角色使用模板与画像，不额外调用 LLM，质检/合规在 all 模式共用一次视觉调用。
 
 ## 代码规范
 

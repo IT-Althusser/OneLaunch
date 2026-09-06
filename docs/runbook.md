@@ -12,6 +12,8 @@ npm run dev:web
 
 ## 冒烟检查
 
+默认 `MODEL_ROUTER_QA_SCOPE=white` 用于演示；需要五图各做合规检测时，在 `apps/server/.env` 设置 `MODEL_ROUTER_QA_SCOPE=all` 后重启。完整模式会增加视觉调用和等待时间，实测耗时见 CHANGES。真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`，使用网关自产图片，避免不可达图源。
+
 ```powershell
 Invoke-WebRequest http://localhost:3100/api/health
 Invoke-WebRequest http://localhost:5173/
@@ -19,6 +21,15 @@ npm run build        # web: tsc + vite build；server: Maven package
 ```
 
 ## 常见故障
+
+- AI 代理运行环境若出现 `Unable to establish loopback connection`：这是本机 JVM 临时 Unix Domain Socket 连接限制，非商品图业务缺陷。2026-09-06 实测仅设置 `preferIPv4Stack` 与普通 `java.io.tmpdir` 不足；指定实际存在的 D 盘 `jdk.net.unixdomain.tmpdir` 后服务启动成功。宿主普通 shell 先直接启动，只有复现该错误时才采用下例，不修改全局环境变量或网关协议。
+
+```powershell
+New-Item -ItemType Directory -Force D:\codex-content\java-sockets | Out-Null
+$env:JAVA_TOOL_OPTIONS = '-Djava.net.preferIPv4Stack=true -Djdk.net.unixdomain.tmpdir=D:\codex-content\java-sockets'
+npm run dev:server
+# 服务结束后：Remove-Item Env:JAVA_TOOL_OPTIONS
+```
 
 - `401`：检查 `MODEL_ROUTER_API_KEY` 是否存在且未过期。
 - `403/404`：确认使用 Token Plan 专属基地址，不要改成通用 DashScope 地址。

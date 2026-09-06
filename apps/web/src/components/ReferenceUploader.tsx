@@ -14,27 +14,33 @@ export function ReferenceUploader({
   images,
   onAdd,
   onRemove,
+  maxImages = MAX_IMAGES,
+  disabled = false,
 }: {
   images: ReferenceImage[];
   onAdd: (items: ReferenceImage[]) => void;
   onRemove: (id: string) => void;
+  maxImages?: number;
+  disabled?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [urlValue, setUrlValue] = useState('');
   const [error, setError] = useState('');
-  const full = images.length >= MAX_IMAGES;
+  const [reading, setReading] = useState(false);
+  const full = images.length >= maxImages;
 
   function addFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || disabled || reading) return;
     setError('');
     const accepted: File[] = [];
     for (const file of Array.from(files)) {
       if (!ACCEPT.includes(file.type)) { setError(`不支持的格式：${file.name}（仅 JPEG / PNG / WebP）`); continue; }
       if (file.size > MAX_FILE_BYTES) { setError(`文件过大：${file.name}（单张不超过 8MB）`); continue; }
-      if (images.length + accepted.length >= MAX_IMAGES) { setError(`最多 ${MAX_IMAGES} 张参考图`); break; }
+      if (images.length + accepted.length >= maxImages) { setError(`最多 ${maxImages} 张参考图`); break; }
       accepted.push(file);
     }
     if (accepted.length === 0) return;
+    setReading(true);
     let loaded = 0;
     const items: ReferenceImage[] = [];
     accepted.forEach((file) => {
@@ -42,12 +48,12 @@ export function ReferenceUploader({
       reader.onload = () => {
         items.push({ id: crypto.randomUUID(), src: String(reader.result), name: file.name, kind: 'upload' });
         loaded += 1;
-        if (loaded === accepted.length) onAdd(items);
+        if (loaded === accepted.length) { onAdd(items); setReading(false); }
       };
       reader.onerror = () => {
         loaded += 1;
         setError(`读取失败：${file.name}`);
-        if (loaded === accepted.length && items.length > 0) onAdd(items);
+        if (loaded === accepted.length) { if (items.length > 0) onAdd(items); setReading(false); }
       };
       reader.readAsDataURL(file);
     });
@@ -58,7 +64,7 @@ export function ReferenceUploader({
     setError('');
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) { setError('请粘贴以 http(s):// 开头的公网图片链接'); return; }
-    if (full) { setError(`最多 ${MAX_IMAGES} 张参考图`); return; }
+    if (full || disabled || reading) { setError(`最多 ${maxImages} 张参考图，请等待当前读取完成`); return; }
     onAdd([{ id: crypto.randomUUID(), src: url, name: url.split('/').pop() || '参考图', kind: 'url' }]);
     setUrlValue('');
   }
@@ -69,13 +75,13 @@ export function ReferenceUploader({
         ref={fileRef}
         type="file"
         accept={ACCEPT.join(',')}
-        multiple
+        multiple={maxImages > 1}
         className="hidden"
         onChange={(e: ChangeEvent<HTMLInputElement>) => { addFiles(e.target.files); e.target.value = ''; }}
       />
       <button
         type="button"
-        disabled={full}
+        disabled={full || disabled || reading}
         onClick={() => fileRef.current?.click()}
         className={`flex min-h-[150px] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed px-4 py-6 transition ${
           full
@@ -84,8 +90,8 @@ export function ReferenceUploader({
         }`}
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current text-lg leading-none">+</span>
-        <span className="text-sm font-semibold">{full ? `已达 ${MAX_IMAGES} 张上限` : '添加商品图'}</span>
-        <span className="text-[11px] text-[#9a9389]">JPEG / PNG / WebP · 最多 {MAX_IMAGES} 张 · 单张 ≤ 8MB</span>
+        <span className="text-sm font-semibold">{reading ? '正在读取图片…' : full ? `已达 ${maxImages} 张上限` : '添加商品图'}</span>
+        <span className="text-[11px] text-[#6f685e]">JPEG / PNG / WebP · 最多 {maxImages} 张 · 单张 ≤ 8MB</span>
       </button>
 
       {images.length > 0 && (
@@ -95,6 +101,7 @@ export function ReferenceUploader({
               <img src={img.src} alt={img.name} className="aspect-square w-full object-cover" />
               <button
                 type="button"
+                disabled={disabled || reading}
                 onClick={() => onRemove(img.id)}
                 aria-label={`移除 ${img.name}`}
                 className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
@@ -121,7 +128,7 @@ export function ReferenceUploader({
         <button
           type="button"
           onClick={addUrl}
-          disabled={full}
+          disabled={full || disabled || reading}
           className="shrink-0 rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-3.5 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:cursor-not-allowed disabled:opacity-50"
         >
           添加

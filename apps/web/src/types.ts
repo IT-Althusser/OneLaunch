@@ -36,6 +36,7 @@ export interface ImagePipelineInput {
   textModel?: string;
   /** 白底图视觉质检模型（须具备视觉理解能力，默认 qwen3.6-plus） */
   visionModel?: string;
+  market?: string;
 }
 
 export interface GeneratedImage {
@@ -46,6 +47,7 @@ export interface GeneratedImage {
 }
 
 export interface QaRecord {
+  platform?: string;
   type: ImageType;
   url: string;
   passed: boolean;
@@ -56,7 +58,12 @@ export interface QaRecord {
   model?: string;
   /** 未通过时的修复提示词样例（符合平台规范，可直接用于重新生成） */
   suggestedPrompt?: string;
+  market?: string;
+  complianceIssues?: { dimension: string; severity: string; detail: string; suggestion: string }[];
 }
+
+export interface ComplianceIssue { dimension: string; severity: string; detail: string; suggestion: string }
+export interface ComplianceResult { passed: boolean; issues: string[]; summary: string; suggestedPrompt?: string; complianceIssues?: ComplianceIssue[]; model?: string }
 
 export interface StepRecord {
   step: string;
@@ -105,6 +112,9 @@ export interface LocalizeRequest {
   targetMarket?: string;
   instruction?: string;
   model?: string;
+  aspects?: string[];
+  targetLanguage?: string;
+  modelProfile?: string;
 }
 
 /** 独立 AI 详情页请求（对应后端 POST /api/detail-page）：名称与卖点至少其一 */
@@ -119,7 +129,7 @@ export interface DetailPageRequest {
 }
 
 /** 侧栏工具入口类型：五类单图 + 本地化 + AI 详情页（'五图套图生成' 走主流程不在此列） */
-export type SideToolType = ImageType | '本地化' | '详情页';
+export type SideToolType = ImageType | '本地化' | '合规检测' | '详情页';
 
 /** 已完成槽位的摘要（生成工作台上报给单图工具工作台） */
 export interface SlotBrief {
@@ -154,6 +164,9 @@ export interface ModelCatalog {
   /** 具备视觉理解能力的模型（白底图质检/内容理解与合规检测） */
   vision: ModelOption[];
   visionAvailable: boolean;
+  qaScope?: 'all' | 'white';
+  error?: string;
+  defaults?: ModelSelection;
 }
 
 /** 右栏模型选择状态 */
