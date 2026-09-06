@@ -1,5 +1,11 @@
 # 变更记录
 
+## 2026-09-06（提交前小修）：审核状态语义化与真实 E2E 证据
+
+- `QaRecord` 新增 `status`（`passed` / `failed` / `manual_review`），保留旧 `passed` 字段兼容；视觉审核降级路径改由 `manual_review` 表达。
+- 新增 `docs/e2e-evidence-2026-09-06.md`，记录本机真实冒烟测试与 Amazon `qa-scope=all` 完整流水线的请求、阶段耗时、质检结果和已知限制。
+- 提交说明补入实测耗时、成功数、详情页模块数及“提交版本已知限制”声明。
+
 ## 2026-09-06（复赛材料同步）：模板口径与对外呈现材料收尾
 
 - README「交付物约束」切换为复赛 Word 转 PDF、GitCode、B站/CSDN 3-5 分钟视频与可运行 Demo 口径；CLAUDE.md 同步 GitCode 及评审授权说明。
