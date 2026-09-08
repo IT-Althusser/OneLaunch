@@ -2,6 +2,7 @@ package com.onelaunch;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -48,7 +49,40 @@ class VisionFormatRecoveryTest {
         doReturn(FAILED).when(client).analyze(any(), eq(URL), anyString());
         client.complianceCheck(null, URL, "尺寸图", "Amazon", "US", "宽38cm");
         verify(client).analyze(any(), eq(URL), argThat(prompt -> prompt.contains("宽38cm")
-                && prompt.contains("任何可识别品牌名") && prompt.contains("透明披露本身不是违规")));
+                && prompt.contains("资料未提供某字段本身不是违规") && prompt.contains("透明披露本身不是违规")));
+    }
+
+    @Test void missingFactsAndUnreadableMarksAreExplicitlyNonBlocking() {
+        var client = client();
+        String prompt = client.compliancePrompt("白底图", "Amazon", false);
+        assertTrue(prompt.contains("资料未提供某属性且图片也未声明时不构成问题"));
+        assertTrue(prompt.contains("无法逐字读出的痕迹"));
+        assertTrue(prompt.contains("轻微阴影"));
+    }
+
+    @Test void referenceImagePromptCarriesFidelityCheckAndExclusions() {
+        var client = client();
+        String withRef = client.compliancePrompt("白底图", "Amazon", true);
+        assertTrue(withRef.contains("第一张是商品原始参考图"));
+        assertTrue(withRef.contains("B 商品本体一致性"));
+        assertTrue(withRef.contains("水滴、冰块、闪光、亮片"));
+        assertTrue(withRef.contains("不得缺失参考图上存在的部件"));
+        assertTrue(withRef.contains("不属于检测范围（不得作为问题项）：商标授权与品牌侵权、广告法与市场法规"));
+        String withoutRef = client.compliancePrompt("白底图", "Amazon", false);
+        assertTrue(withoutRef.contains("本次未提供参考图，跳过"));
+        assertFalse(withoutRef.contains("第一张是商品原始参考图"));
+    }
+
+    @Test void passingResultCarriesReasonsAndLegacyModelOutputGetsSafeFallback() {
+        var client = client();
+        var explicit = client.parseCompliance("""
+                {"passed":true,"summary":"符合要求","issues":[],"suggestedPrompt":"","passReasons":["主体完整","未见误导性文字"]}
+                """, "test");
+        assertEquals(List.of("主体完整", "未见误导性文字"), explicit.passReasons());
+        var legacy = client.parseCompliance("""
+                {"passed":true,"summary":"符合要求","issues":[],"suggestedPrompt":""}
+                """, "test");
+        assertFalse(legacy.passReasons().isEmpty());
     }
 
     @Test void realViolationIsNotRetriedInSearchOfPassAndInconsistentPassIsRejected() {

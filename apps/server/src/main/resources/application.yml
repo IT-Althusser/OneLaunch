@@ -6,7 +6,10 @@ spring:
   application:
     name: onelaunch-server
 server:
-  port: ${PORT:3100}
+  port: ${PORT:3101}
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  tomcat:
+    protocol: org.apache.coyote.http11.Http11Nio2Protocol
   error:
     include-message: always
 model-router:

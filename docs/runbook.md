@@ -15,7 +15,7 @@ npm run dev:web
 默认 `MODEL_ROUTER_QA_SCOPE=all`，五图均做合规检测并核对原始资料；已有环境若显式设置为 `white`，需改为 `all` 后重启。尺寸图支持明确的“宽38cm、高30cm、厚12cm”等带单位资料，没有资料则显示未提供；示例中的尺寸是演示设定。真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`。
 
 ```powershell
-Invoke-WebRequest http://localhost:3100/api/health
+Invoke-WebRequest http://localhost:3101/api/health
 Invoke-WebRequest http://localhost:5173/
 npm run build        # web: tsc + vite build；server: Maven package
 ```
@@ -47,6 +47,7 @@ npm run dev:server
 - 异步 403：Token Plan Key 不支持异步调用，本地化接口为同步图生图，无需轮询。
 - 图文混合 content 报 400：图片生成/编辑模型必须用 `{type:"image", image:url}` 扁平字段；视觉理解模型（`ModelRouterVisionClient.java`，白底图质检）相反必须用 OpenAI 嵌套 `{type:"image_url", image_url:{url}}` 格式，并建议 `"enable_thinking": false`。
 - 视觉质检报 `must be larger than 10`：视觉理解要求图片宽高大于 10px（1×1 测试图会触发）。
+- 白底图反复判"背景不纯白/高噪点"、修复不收敛：检测端已内置白底判定容差（各 RGB 通道 ≥245 且均匀干净即合规，轻微压缩噪点不算违规），正常不应反复失败；若仍出现，先确认图片确无可见场景元素/明显阴影（属真实违规），再检查是否被改为严格 RGB 255 判定。
 - 指定尺寸不生效：网关忽略 `size` 参数（实测），投放画幅由前端单图工作台按 1:1 / 3:2 / 2:3 居中裁切（依赖同源代理 `GET /api/image-proxy`）。
 
 ## 清理

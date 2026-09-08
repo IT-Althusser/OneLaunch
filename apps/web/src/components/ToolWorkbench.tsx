@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { regenerateSingle, localizeImage, complianceCheck, imageProxyUrl } from '../api/client';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImageLightbox } from './ImageLightbox';
@@ -27,7 +27,7 @@ const TOOL_OPTION_GROUPS: Partial<Record<SideToolType, { label: string; options:
   ],
   模特图: [
     { label: '模特', options: ['职场白领模特', '大学生模特', '年轻妈妈模特', '运动青年模特'] },
-    { label: '景别', options: ['半身特写', '全身展示', '手部持握特写'] },
+    { label: '景别', options: ['腰部以上完整人物', '全身展示', '人物与商品同框'] },
     { label: '姿态', options: ['自然手持展示', '上身使用中', '行走抓拍'] },
   ],
   对比图: [
@@ -44,6 +44,15 @@ const TOOL_OPTION_GROUPS: Partial<Record<SideToolType, { label: string; options:
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** 平台默认投放市场（与后端 ImagePipelineService.marketForPlatform 一致）：生成结果自动合规复检用 */
+function marketForPlatform(platform: string): string {
+  switch (platform) {
+    case 'TikTok Shop': case 'Shopee': return '东南亚';
+    case 'Temu': return '欧盟';
+    default: return 'US';
+  }
 }
 
 /** 画幅默认值按工具特性区分 */
@@ -90,10 +99,13 @@ export function ToolWorkbench({
   backLabel,
   onApplied,
   onRepair,
+  onBusyChange,
+  idScope,
+  productFacts,
 }: {
   type: SideToolType;
   platform: string;
-  current?: { url: string; size: string; prompt: string } | null;
+  current?: { url: string; size: string; prompt: string; type?: ImageType } | null;
   models: ModelSelection;
   /** 外部带入的提示词（如质检修复样例），优先级最高 */
   promptOverride?: string | null;
@@ -101,6 +113,12 @@ export function ToolWorkbench({
   backLabel: string;
   onApplied?: (image: GeneratedImage, prompt: string) => void;
   onRepair: (type: ImageType, platform: string, url: string, prompt: string) => void;
+  /** 向应用外壳上报运行状态；工作台隐藏时请求仍继续执行。 */
+  onBusyChange?: (busy: boolean) => void;
+  /** 实例标识：多实例并存（后台任务保持挂载）时保证 DOM id 唯一 */
+  idScope?: string | number;
+  /** 商品资料（名称+卖点）：合规检测与流水线 QA 保持同一判定口径 */
+  productFacts?: string;
 }) {
   const isLocalize = type === '本地化';
   const isCompliance = type === '合规检测';
@@ -114,16 +132,29 @@ export function ToolWorkbench({
   const [aspects, setAspects] = useState<string[]>(['scene']);
   const [targetLanguage, setTargetLanguage] = useState('英语');
   const [modelProfile, setModelProfile] = useState('欧美面孔模特');
-  const [complianceMarket, setComplianceMarket] = useState('US');
-  const [complianceType, setComplianceType] = useState<ImageType>('白底图');
+  const [complianceMarket, setComplianceMarket] = useState(marketForPlatform(platform));
+  const [complianceType, setComplianceType] = useState<ImageType>(current?.type ?? '白底图');
   const [complianceResult, setComplianceResult] = useState<ComplianceResult | null>(null);
   const [aspect, setAspect] = useState<AspectId>(DEFAULT_ASPECT[type] ?? '1:1');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ image: GeneratedImage; applied: boolean; appliedAspects?: string[]; note?: string; prompt?: string } | null>(null);
+  /** 生成结果的自动合规复检（五类图）：新图 URL 直传检测，无需下载重传 */
+  const [resultCompliance, setResultCompliance] = useState<ComplianceResult | null>(null);
+  const [complianceChecking, setComplianceChecking] = useState(false);
+  const [complianceCheckError, setComplianceCheckError] = useState('');
   const [copied, setCopied] = useState(false);
   const [preview, setPreview] = useState<{ url: string; type: string; platform: string; size: string } | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const busyChangeRef = useRef(onBusyChange);
+  const checkSeqRef = useRef(0);
+  /** 最近一次生成所用锚点参考图（edit→源图 / regen→首张参考图），供手动「重新检测」复用 P3 本体检验 */
+  const lastAnchorRef = useRef<string | undefined>(undefined);
+  const promptId = idScope != null ? `tool-prompt-${idScope}` : 'tool-prompt';
+
+  useEffect(() => { busyChangeRef.current = onBusyChange; }, [onBusyChange]);
+  useEffect(() => { busyChangeRef.current?.(busy || complianceChecking); }, [busy, complianceChecking]);
+  useEffect(() => () => busyChangeRef.current?.(false), []);
 
   const imageMode = !isLocalize && !isCompliance;
   const useEditModel = isLocalize || mode === 'edit' || refs.length > 0;
@@ -150,8 +181,63 @@ export function ToolWorkbench({
     promptRef.current?.focus();
   }
 
-  async function generate() {
-    if (!canGenerate) {
+  /** 生成结果自动合规复检（含 P3 本体一致性检验）：新图 URL 直传检测，referenceUrl 为本次生成的锚点参考图（regen→参考图 / edit→源图）；
+   *  seq 守卫丢弃过期结果，防止与新一轮检测竞态 */
+  async function checkCompliance(url: string, referenceUrl?: string) {
+    const seq = ++checkSeqRef.current;
+    setComplianceChecking(true);
+    setComplianceCheckError('');
+    setResultCompliance(null);
+    try {
+      const checked = await complianceCheck({ imageUrl: url, imageType: type as ImageType, platform, market: marketForPlatform(platform), visionModel: models.visionModel, productFacts, referenceImageUrl: referenceUrl });
+      if (seq !== checkSeqRef.current) return;
+      setResultCompliance(checked);
+    } catch (e) {
+      if (seq !== checkSeqRef.current) return;
+      setComplianceCheckError((e as Error).message);
+    } finally {
+      if (seq === checkSeqRef.current) setComplianceChecking(false);
+    }
+  }
+
+  // 合规工作台带入图片后自动发起检测：URL 直传内部接口，无需下载重传；
+  // 结果写入 complianceResult（工作台原生检测结果区渲染），换图时清掉过期结果。
+  useEffect(() => {
+    if (!isCompliance || !refs[0]?.src || busy) return;
+    setComplianceResult(null);
+    void (async () => {
+      setBusy(true);
+      setError('');
+      try {
+        const checked = await complianceCheck({ imageUrl: refs[0].src, imageType: complianceType, platform, market: complianceMarket, visionModel: models.visionModel, productFacts });
+        setComplianceResult(checked);
+        setResult(null);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCompliance, refs[0]?.src]);
+
+  /** 合规复检未通过时的一键修复：新图转源图、切编辑模式、预填修复指令并立即再生成（生成后自动再复检） */
+  async function repairWithSuggestion() {
+    const suggestion = resultCompliance?.suggestedPrompt;
+    if (!suggestion || !result?.image.url || busy || complianceChecking) return;
+    const repairRefs: ReferenceImage[] = [{ id: `repair-${result.image.url}`, src: result.image.url, name: '待修复的新图', kind: 'url' }];
+    setPrompt(suggestion);
+    setMode('edit');
+    setRefs(repairRefs);
+    await generate({ prompt: suggestion, mode: 'edit', refs: repairRefs });
+  }
+
+  /** overrides 供一键修复等程序化调用直接传参，绕过表单校验；人工点击时校验状态门槛 */
+  async function generate(overrides?: { prompt?: string; mode?: 'regen' | 'edit'; refs?: ReferenceImage[] }) {
+    const nextPrompt = (overrides?.prompt ?? prompt).trim();
+    const nextMode = overrides?.mode ?? mode;
+    const nextRefs = overrides?.refs ?? refs;
+    if (!overrides && !canGenerate) {
       setError(sourceMissing ? '请先提供一张源图（上传或粘贴图片链接）' : '请填写文字描述并在修改模式提供源图');
       return;
     }
@@ -159,27 +245,37 @@ export function ToolWorkbench({
     setError('');
     setResult(null);
     setComplianceResult(null);
+    setResultCompliance(null);
+    setComplianceCheckError('');
     try {
       if (isCompliance) {
-        const checked = await complianceCheck({ imageUrl: refs[0].src, imageType: complianceType, platform, market: complianceMarket, visionModel: models.visionModel });
+        const checked = await complianceCheck({ imageUrl: nextRefs[0].src, imageType: complianceType, platform, market: complianceMarket, visionModel: models.visionModel, productFacts });
         setComplianceResult(checked);
         setResult(null);
         return;
       }
       if (isLocalize) {
-        const localized = await localizeImage({ sourceUrl: refs[0].src, targetMarket: market, instruction: prompt.trim(), model: models.editModel, aspects, targetLanguage, modelProfile });
+        const localized = await localizeImage({ sourceUrl: nextRefs[0].src, targetMarket: market, instruction: nextPrompt, model: models.editModel, aspects, targetLanguage, modelProfile });
         setResult({ ...localized, applied: false });
         return;
       }
+      const nextActiveModel = isLocalize || nextMode === 'edit' || nextRefs.length > 0 ? models.editModel : models.imageModel;
+      const editSourceUrl = nextMode === 'edit' ? nextRefs[0]?.src ?? current?.url : undefined;
       const image = await regenerateSingle({
             type: type as ImageType,
-            prompt: prompt.trim(),
+            prompt: nextPrompt,
             platform,
-            referenceImages: mode === 'edit' || refs.length === 0 ? undefined : refs.map((r) => r.src),
-            sourceUrl: mode === 'edit' ? refs[0]?.src ?? current?.url : undefined,
-            model: activeModel,
+            referenceImages: nextMode === 'edit' || nextRefs.length === 0 ? undefined : nextRefs.map((r) => r.src),
+            sourceUrl: editSourceUrl,
+            model: nextActiveModel,
           });
       setResult({ image, applied: false });
+      // 生成即复检（含 P3 本体一致性）：锚点参考 = edit→源图 / regen→首张参考图；新图 URL 直传合规检测，结果内联展示，未通过可一键修复
+      if (imageMode) {
+        const anchorUrl = nextMode === 'edit' ? editSourceUrl : (nextRefs.length > 0 ? nextRefs[0].src : undefined);
+        lastAnchorRef.current = anchorUrl;
+        void checkCompliance(image.url, anchorUrl);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -271,9 +367,9 @@ export function ToolWorkbench({
             <label className="text-xs text-[#514b43]">图类<select disabled={busy} className="field mt-1" value={complianceType} onChange={(e) => setComplianceType(e.target.value as ImageType)}>{IMAGE_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
           </div>}
           {isLocalize && <div className="mb-3 flex flex-wrap gap-2">{[['scene','背景场景'],['text','文字语言'],['model','模特形象']].map(([id,label]) => <button key={id} type="button" disabled={busy} aria-pressed={aspects.includes(id)} onClick={() => setAspects((p) => p.includes(id) ? p.length > 1 ? p.filter((x) => x !== id) : p : [...p,id])} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${aspects.includes(id) ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e]'}`}>{label}</button>)}</div>}
-          {!isCompliance && <label htmlFor="tool-prompt" className="mb-2 block text-xs text-[#514b43]">{isLocalize ? '附加要求（可选）' : '画面要求'}</label>}
+          {!isCompliance && <label htmlFor={promptId} className="mb-2 block text-xs text-[#514b43]">{isLocalize ? '附加要求（可选）' : '画面要求'}</label>}
           {!isCompliance && <textarea
-            id="tool-prompt"
+            id={promptId}
             ref={promptRef}
             className="field min-h-[150px] resize-y text-xs"
             value={prompt}
@@ -364,12 +460,20 @@ export function ToolWorkbench({
             <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${complianceResult.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${complianceResult.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{complianceResult.passed ? '通过' : '未通过'}</span>
           </header>
           <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.summary}</p>
+          {complianceResult.passed && complianceResult.passReasons && complianceResult.passReasons.length > 0 && (
+            <div className="mt-3 rounded-xl bg-[#e9f7ee] px-4 py-3">
+              <p className="text-[10px] font-bold tracking-[0.12em] text-[#1d7a44]">通过依据</p>
+              <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#2e6845]">
+                {complianceResult.passReasons.map((reason, index) => <li key={index}>· {reason}</li>)}
+              </ul>
+            </div>
+          )}
           <ComplianceIssues issues={complianceResult.complianceIssues ?? []} />
           {complianceResult.suggestedPrompt && <div className="mt-3 border-t border-[#e2ddd5] pt-3">
             <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.suggestedPrompt}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(complianceResult.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复提示词复制'); } }} className="rounded-xl border border-[#d9d3c9] px-3 py-2 text-xs">{copied ? '已复制' : '复制修复提示词'}</button>
-              <button type="button" onClick={() => onRepair(complianceType, platform, refs[0].src, complianceResult.suggestedPrompt ?? '')} className="rounded-xl bg-[#ef6a4c] px-3 py-2 text-xs font-semibold text-white hover:bg-[#d95d41]">用此建议修复</button>
+              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(complianceResult.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复指令复制'); } }} className="rounded-xl border border-[#d9d3c9] px-3 py-2 text-xs">{copied ? '已复制' : '复制修复指令'}</button>
+              <button type="button" onClick={() => onRepair(complianceType, platform, refs[0].src, complianceResult.suggestedPrompt ?? '')} className="rounded-xl bg-[#ef6a4c] px-3 py-2 text-xs font-semibold text-white hover:bg-[#d95d41]">用此指令修复</button>
             </div>
           </div>}
         </section>
@@ -429,6 +533,69 @@ export function ToolWorkbench({
               )}
             </div>
           </div>
+          {/* 生成即复检（五类图）：新图 URL 直传合规检测，无需下载重传；未通过可一键修复闭环 */}
+          {imageMode && (
+            <div className="mt-4 border-t border-[#e2ddd5] pt-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">合规复检 · {platform} · {marketForPlatform(platform)} 市场</span>
+                {!complianceChecking && (
+                  <button type="button" onClick={() => result && checkCompliance(result.image.url)} disabled={busy}
+                    className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">
+                    重新检测
+                  </button>
+                )}
+              </div>
+              {complianceChecking && <p className="text-xs text-[#6f685e]" role="status">合规 Agent：正在按 {platform} 平台规则检测新图…</p>}
+              {!complianceChecking && complianceCheckError && (
+                <p className="text-xs leading-relaxed text-[#a44836]">自动复检失败：{complianceCheckError}。可点击「重新检测」重试，或到「合规检测」工作台人工复检。</p>
+              )}
+              {!complianceChecking && !resultCompliance && !complianceCheckError && (
+                <button type="button" onClick={() => result && checkCompliance(result.image.url, lastAnchorRef.current)} disabled={busy}
+                  className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">
+                  检测此图合规性
+                </button>
+              )}
+              {!complianceChecking && resultCompliance && (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${resultCompliance.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}>
+                      <span className={`h-2 w-2 rounded-full ${resultCompliance.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />
+                      {resultCompliance.passed ? '通过' : '未通过'}
+                    </span>
+                    {resultCompliance.model && <span className="rounded-full bg-[#eee9e1] px-2 py-0.5 text-[9px] font-bold text-[#6f685e]">{resultCompliance.model}</span>}
+                  </div>
+                  <p className="mt-2 break-words text-xs leading-relaxed text-[#514b43]">{resultCompliance.summary}</p>
+                  {resultCompliance.passed && resultCompliance.passReasons && resultCompliance.passReasons.length > 0 && (
+                    <div className="mt-2 rounded-xl bg-[#e9f7ee] px-4 py-3">
+                      <p className="text-[10px] font-bold tracking-[0.12em] text-[#1d7a44]">通过依据</p>
+                      <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#2e6845]">
+                        {resultCompliance.passReasons.map((reason, index) => <li key={index}>· {reason}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  <ComplianceIssues issues={resultCompliance.complianceIssues ?? []} />
+                  {!resultCompliance.passed && resultCompliance.suggestedPrompt && (
+                    <div className="mt-3 rounded-lg bg-[#f4f1eb] p-2.5">
+                      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">修复指令 · 可直接执行</span>
+                        <span className="flex shrink-0 gap-1.5">
+                          <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(resultCompliance.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复指令复制'); } }}
+                            className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">
+                            {copied ? '已复制 ✓' : '复制修复指令'}
+                          </button>
+                          <button type="button" onClick={repairWithSuggestion} disabled={busy}
+                            className="rounded-md bg-[#ef6a4c] px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-[#d95d41] disabled:opacity-50">
+                            {busy ? '修复中…' : '一键修复此图'}
+                          </button>
+                        </span>
+                      </div>
+                      <p className="break-all font-mono text-[10px] leading-relaxed text-[#514b43]">{resultCompliance.suggestedPrompt}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </section>
       )}
       {error && <div role="alert" className="mt-5 break-words rounded-xl border border-[#f0b7a8] bg-[#fff1ed] px-4 py-3 text-xs text-[#a44836]">{error}</div>}
@@ -446,7 +613,7 @@ export function ToolWorkbench({
                 ? `参考图生成：以 ${refs.length} 张参考素材保持商品一致，生成后可按 ${aspect} 画幅下载${onApplied ? '或应用回槽位' : ''}。`
                 : `文生图：按文字描述生成，生成后可按 ${aspect} 画幅下载${onApplied ? '或应用回槽位' : ''}。`}
         </p>
-        <button type="button" onClick={generate} disabled={!canGenerate}
+        <button type="button" onClick={() => generate()} disabled={!canGenerate}
           className="rounded-xl bg-[#ef6a4c] px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">
           {busy ? (isCompliance ? '正在检测…' : '正在生成…') : isCompliance ? `开始合规检测（${complianceMarket} · ${complianceType}）` : isLocalize ? `开始本地化（${market}）` : mode === 'edit' ? '基于当前图重新生成' : '开始生成'}
         </button>

@@ -62,10 +62,12 @@ export interface QaRecord {
   suggestedPrompt?: string;
   market?: string;
   complianceIssues?: { dimension: string; severity: string; detail: string; suggestion: string }[];
+  /** 审核通过时的实际依据；不代表放宽平台规则。 */
+  passReasons?: string[];
 }
 
 export interface ComplianceIssue { dimension: string; severity: string; detail: string; suggestion: string }
-export interface ComplianceResult { passed: boolean; issues: string[]; summary: string; suggestedPrompt?: string; complianceIssues?: ComplianceIssue[]; model?: string }
+export interface ComplianceResult { passed: boolean; issues: string[]; summary: string; suggestedPrompt?: string; complianceIssues?: ComplianceIssue[]; model?: string; passReasons?: string[] }
 
 export interface StepRecord {
   step: string;

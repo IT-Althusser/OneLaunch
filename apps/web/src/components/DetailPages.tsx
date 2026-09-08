@@ -56,7 +56,7 @@ export function DetailPages({ pages, images }: { pages: DetailPage[]; images: Ge
                 );
               })}
               {page.compliance.length > 0 && (
-                <p className="text-[10px] leading-relaxed text-[#a49d92]">合规提示：{page.compliance.join('；')}</p>
+                <p className="text-[10px] leading-relaxed text-[#a49d92]">合规提示：{page.compliance.join(' · ')}</p>
               )}
             </div>
           </details>

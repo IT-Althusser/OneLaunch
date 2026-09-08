@@ -3,7 +3,7 @@
 ## 本地服务
 
 - 前端开发服务器：`http://localhost:5173`
-- 后端 API：`http://localhost:3100`（Java 25 + Spring Boot 4.0.6 + Spring AI 2.0.1）
+- 后端 API：`http://localhost:3101`（Java 25 + Spring Boot 4.0.6 + Spring AI 2.0.1）
 - 健康检查：`GET /api/health`
 
 后端通过 `apps/server/.env` 读取 `MODEL_ROUTER_API_KEY`、`MODEL_ROUTER_BASE_URL`、模型 ID 与 `PORT`。密钥只放环境变量，不要写入源码或文档。
@@ -48,7 +48,7 @@
 | `done` | 完整 `ImagePipelineResponse` | 任务结束 |
 | `fatal` | `{error}` | 流程级异常 |
 
-质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容。`status` 为 `passed`、`failed` 或 `manual_review`；人工复检时 `passed=false`。`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为中文修复建议。默认 `MODEL_ROUTER_QA_SCOPE=all`，逐图审核并对照原始资料；`white` 仅每平台一次白底兼容质检，不含市场广告法。模型生成的四类图审核未通过时最多修复一次；尺寸图使用确定性文字排版，不交给模型重画数字。SSE `qa_first` 记录初检，`qa` 记录当前结果。图片 URL 可能是 PNG data URL，客户端应直接显示和下载，不能将其拼入代理查询字符串。
+质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容。`status` 为 `passed`、`failed` 或 `manual_review`；人工复检时 `passed=false`。`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为可直接执行的中文修复指令（祈使句：「保持商品本体（形状、结构、颜色、材质）不变」+ 逐项画面级修改动作，可直接复制用于重生成或图生图修复）。默认 `MODEL_ROUTER_QA_SCOPE=all`，逐图审核并对照原始资料；`white` 仅每平台一次白底兼容质检，不含市场广告法。模型生成的四类图审核未通过时最多修复一次；尺寸图使用确定性文字排版，不交给模型重画数字。SSE 仅推送 `qa` 最终结果（初检在服务端内部决定是否自动修复，不单独发事件；同平台同图类复检覆盖前一次记录）。图片 URL 可能是 PNG data URL，客户端应直接显示和下载，不能将其拼入代理查询字符串。
 
 ### 模型清单
 
@@ -62,9 +62,9 @@
 
 `POST /api/images/single`，同步返回 `{ image: GeneratedImage }`。三分支：
 
-- 仅 `type` + `prompt`（可选 `model`）：文生图重生成；
-- + `referenceImages`：参考图生成（图生图，默认走 `editModel`）；
-- + `sourceUrl`：基于已生成图修改（图生图，源图 + 指令）。
+- 仅 `type` + `prompt`（可选 `model`）：文生图重生成，自动注入图类硬性要求与目标平台规范；
+- + `referenceImages`：参考图生成（图生图，默认走 `editModel`），附加参考图商品一致性约束；
+- + `sourceUrl`：基于已生成图修改（图生图，源图 + 指令），用户指令为唯一编辑任务并附商品保持约束——指令要求的改动优先执行，未提及内容保持源图原样。
 
 ### 图片本地化
 
@@ -72,9 +72,9 @@
 
 aspects 省略默认 `["scene"]`，显式空数组或非法值返回 400。目标市场默认 US；目标语言未指定时日本→日语，其余→英语。instruction 为可选附加要求，text 生效返回文字人工复核 note，modelProfile 仅在 model 生效时使用；sourceUrl 必须是 http(s) 或图片 data URL，model 可覆盖默认编辑模型。
 
-`POST /api/compliance-check` 请求 `{imageUrl,imageType?,platform,market,visionModel?}`，返回 `passed`、`summary`、`issues`、`complianceIssues`、`suggestedPrompt`、`model`；图片支持公网 URL 或 `data:image/...;base64`，缺少必要参数返回可读 400。
+`POST /api/compliance-check` 请求 `{imageUrl,imageType?,platform,market,visionModel?,productFacts?,referenceImageUrl?}`，返回 `passed`、`summary`、`issues`、`complianceIssues`、`suggestedPrompt`、`model`；图片支持公网 URL 或 `data:image/...;base64`，缺少必要参数返回可读 400。
 
-imageType 省略默认白底图；平台与市场必填。结构化问题位于 complianceIssues，issues 是兼容文本列表；summary 含“AI 辅助审查，不构成法律意见”。独立检测失败返回可读错误供用户重试，流水线检测失败则输出人工复检记录并继续。
+imageType 省略默认白底图；平台与市场必填。`referenceImageUrl` 为商品原始参考图（P3）：传入时与待检图合并一次视觉调用，同时输出「平台规范与图类要求」和「商品本体一致性」（形状/结构/颜色/材质/比例/固有印刷一致、无新增装饰、无部件缺失；背景差异不算问题）两项结论；不传时仅平台规范与图类要求。检测范围仅平台相关——不含商标授权、广告法与市场法规；complianceIssues 的 dimension 取值：平台规范/商品一致性/文字准确性/其他。结构化问题位于 complianceIssues，issues 是兼容文本列表；summary 含“AI 辅助审查，不构成法律意见”。白底判定含容差：背景各 RGB 通道不低于 245 且均匀干净即判纯白合规，轻微压缩噪点与 ±10 白色偏差不构成未通过；只有可辨认场景元素、道具、明显阴影或成片杂色纹理才判背景违规。独立检测失败返回可读错误供用户重试，流水线检测失败则输出人工复检记录并继续。
 
 ### AI 详情页自动化（独立，不依赖五图流水线）
 

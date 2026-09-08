@@ -29,6 +29,16 @@ import { IMAGE_TYPES } from './types';
 
 type Tab = WorkbenchTab;
 
+/** 单图工具工作台实例：切换工作台时保持挂载（仅隐藏），生成任务在后台继续运行；seq 为实例唯一标识 */
+type ToolPageState = {
+  type: SideToolType;
+  slotKey: string | null;
+  platform: string;
+  source?: SlotBrief;
+  promptOverride?: string;
+  seq: number;
+};
+
 const DEFAULT_SELECTION: ModelSelection = { imageModel: '', editModel: '', textModel: '', visionModel: '' };
 
 export default function App() {
@@ -39,8 +49,12 @@ export default function App() {
   const [error, setError] = useState('');
   const [studioInput, setStudioInput] = useState<ImagePipelineInput | null>(null);
   const [studioKey, setStudioKey] = useState(0);
+  const [studioRunning, setStudioRunning] = useState(false);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
-  const [toolPage, setToolPage] = useState<{ type: SideToolType; slotKey: string | null; platform: string; source?: SlotBrief; promptOverride?: string; seq: number } | null>(null);
+  const [toolPages, setToolPages] = useState<ToolPageState[]>([]);
+  const [toolPage, setToolPage] = useState<ToolPageState | null>(null);
+  const [busyToolSeqs, setBusyToolSeqs] = useState<number[]>([]);
+  const [engagedToolSeqs, setEngagedToolSeqs] = useState<number[]>([]);
   const [slotIndex, setSlotIndex] = useState<Record<string, SlotBrief>>({});
   const [slotUpdate, setSlotUpdate] = useState<{ key: string; image: GeneratedImage; prompt: string; seq: number } | null>(null);
 
@@ -63,35 +77,67 @@ export default function App() {
   function handleSubmit(input: ImagePipelineInput) {
     setError('');
     setStudioInput(input);
+    setStudioRunning(true);
     setSlotIndex({});
     setStudioKey((k) => k + 1);
+    resetIdleToolPages();
     setTab('studio');
   }
 
+  const handleStudioRunningChange = useCallback((running: boolean) => setStudioRunning(running), []);
+
+  /** 工具实例运行状态上报：busy=运行中；engaged 记录发起过任务的实例（完成后切回仍能看到结果） */
+  const handleToolBusyChange = useCallback((seq: number, busy: boolean) => {
+    setBusyToolSeqs((prev) => (busy ? (prev.includes(seq) ? prev : [...prev, seq]) : prev.filter((s) => s !== seq)));
+    if (busy) setEngagedToolSeqs((prev) => (prev.includes(seq) ? prev : [...prev, seq]));
+  }, []);
+
+  /** 新的五图任务：清理不在运行中的工具工作台实例；运行中的保留（后台继续，切回可查看） */
+  const resetIdleToolPages = useCallback(() => {
+    setToolPages((prev) => prev.filter((p) => busyToolSeqs.includes(p.seq)));
+    setToolPage((prev) => (prev && busyToolSeqs.includes(prev.seq) ? prev : null));
+  }, [busyToolSeqs]);
+
+  /**
+   * 打开（或回到）单图工具工作台：
+   * - 同类型同槽位实例正在运行 → 复用实例回到任务现场，后台任务不被打断
+   * - 实例发起过任务且本次无新指令（promptOverride）→ 复用实例回看结果
+   * - 其余情况新建实例并替换同键旧实例
+   */
+  const openToolPage = useCallback((next: ToolPageState) => {
+    setError('');
+    const existing = toolPages.find((p) => p.type === next.type && p.slotKey === next.slotKey);
+    const reusable = existing && (busyToolSeqs.includes(existing.seq) || (!next.promptOverride && engagedToolSeqs.includes(existing.seq))) ? existing : null;
+    const target = reusable ?? next;
+    if (!reusable) setToolPages((prev) => [...prev.filter((p) => !(p.type === target.type && p.slotKey === target.slotKey)), target]);
+    setToolPage(target);
+    setTab('tool');
+  }, [toolPages, busyToolSeqs, engagedToolSeqs]);
+
   /** 侧栏工具：打开对应类型的单图工具工作台整页；该类型已有完成图则带入槽位，否则独立生成 */
   const handleOpenTool = useCallback((tool: string) => {
-    setError('');
     const platform = studioInput?.platforms[0] ?? 'Amazon';
     // 本地化 / AI 详情页为独立工作台，不带入生成工作台槽位
     const key = tool === '本地化' || tool === '合规检测' || tool === '详情页' ? null : `${platform}||${tool}`;
     const slot = key ? slotIndex[key] : undefined;
     const source = tool === '本地化' || tool === '合规检测' ? Object.values(slotIndex)[0] : undefined;
-    setToolPage({ type: tool as SideToolType, slotKey: slot?.key ?? null, source, platform: slot?.platform ?? source?.platform ?? platform, seq: Date.now() });
-    setTab('tool');
-  }, [studioInput, slotIndex]);
+    openToolPage({ type: tool as SideToolType, slotKey: slot?.key ?? null, source, platform: slot?.platform ?? source?.platform ?? platform, seq: Date.now() });
+  }, [studioInput, slotIndex, openToolPage]);
 
   const handleSlotIndex = useCallback((index: Record<string, SlotBrief>) => setSlotIndex(index), []);
 
   const handleOpenSlotWorkbench = useCallback((slotKey: string, type: string, platform: string, promptOverride?: string) => {
-    setToolPage({ type: type as SideToolType, slotKey, platform, promptOverride, seq: Date.now() });
-    setTab('tool');
-  }, []);
+    openToolPage({ type: type as SideToolType, slotKey, platform, promptOverride, seq: Date.now() });
+  }, [openToolPage]);
 
   /** 已完成槽位图 → AI 详情页工作台的配图引用（槽位 key 唯一） */
   const detailImages = useMemo<GeneratedImage[]>(
     () => Object.values(slotIndex).map((b) => ({ type: b.type, platform: b.platform, size: b.size, url: b.url })),
     [slotIndex],
   );
+
+  /** 后台运行中的工具任务（当前不在查看的实例）：页头显示返回入口 */
+  const backgroundTool = toolPages.find((p) => busyToolSeqs.includes(p.seq) && !(tab === 'tool' && toolPage?.seq === p.seq)) ?? null;
 
   return (
     <div className="flex min-h-screen bg-[#f4f1eb] text-[#17202b]">
@@ -115,6 +161,20 @@ export default function App() {
               </button>
             ))}
           </nav>
+          {(studioInput && tab !== 'studio' && studioRunning) || backgroundTool ? (
+            <div className="order-3 flex shrink-0 flex-wrap items-center gap-2">
+              {studioInput && tab !== 'studio' && studioRunning && (
+                <button type="button" onClick={() => setTab('studio')} className="inline-flex items-center gap-2 rounded-full bg-[#fff1ed] px-3 py-1.5 text-xs font-semibold text-[#c84f36] hover:bg-[#fde4dc]" aria-label="返回正在运行的生成任务">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-[#ef6a4c]" />生成任务后台运行中 · 返回查看
+                </button>
+              )}
+              {backgroundTool && (
+                <button type="button" onClick={() => { setToolPage(backgroundTool); setTab('tool'); }} className="inline-flex items-center gap-2 rounded-full bg-[#fff1ed] px-3 py-1.5 text-xs font-semibold text-[#c84f36] hover:bg-[#fde4dc]" aria-label="返回正在运行的工具任务">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-[#ef6a4c]" />{backgroundTool.type === '详情页' ? 'AI 详情页' : backgroundTool.type}任务后台运行中 · 返回查看
+                </button>
+              )}
+            </div>
+          ) : null}
         </header>
         <nav aria-label="工具导航" className="border-b border-[#e2ddd5] bg-[#fffdf9] px-5 py-3 lg:hidden">
           <select aria-label="选择工作台工具" className="field select-field" value={tab === 'tool' ? toolPage?.type ?? '' : ''} onChange={(e) => { if (e.target.value) handleOpenTool(e.target.value); else setTab('create'); }}>
@@ -148,39 +208,48 @@ export default function App() {
                   onSlotIndex={handleSlotIndex}
                   slotUpdate={slotUpdate}
                   onSlotUpdateConsumed={() => setSlotUpdate(null)}
-                  onNewTask={() => { setStudioInput(null); setSlotIndex({}); setTab('create'); }}
+                  onRunningChange={handleStudioRunningChange}
+                  onNewTask={() => { setStudioRunning(false); setStudioInput(null); setSlotIndex({}); resetIdleToolPages(); setTab('create'); }}
                 />
               </div>
             )}
-            {/* 工具工作台（整页）：AI 详情页走 DetailWorkbench，其余为单图工具工作台；key 含类型与槽位：切换工具时按新特性重新初始化 */}
-            {tab === 'tool' && toolPage && (
-              toolPage.type === '详情页' ? (
-                <DetailWorkbench
-                  key={`detail-${toolPage.seq}`}
-                  images={detailImages}
-                  models={selection}
-                  initialName={studioInput?.productName ?? ''}
-                  initialPoints={studioInput?.sellingPoints ?? ''}
-                  initialPlatforms={studioInput?.platforms ?? ['Amazon']}
-                  initialTone={studioInput?.detailTone ?? '专业可信'}
-                  onBack={() => setTab(studioInput ? 'studio' : 'create')}
-                  backLabel={studioInput ? '返回生成工作台' : '返回创作工作台'}
-                />
-              ) : (
-                <ToolWorkbench
-                  key={`${toolPage.type}-${toolPage.slotKey ?? 'standalone'}-${toolPage.seq}`}
-                  type={toolPage.type}
-                  platform={toolPage.platform}
-                  current={toolPage.slotKey ? slotIndex[toolPage.slotKey] ?? null : toolPage.source ?? null}
-                  promptOverride={toolPage.promptOverride}
-                  models={selection}
-                  onBack={() => setTab(studioInput ? 'studio' : 'create')}
-                  backLabel={studioInput ? '返回生成工作台' : '返回创作工作台'}
-                  onApplied={toolPage.slotKey ? (image, prompt) => setSlotUpdate({ key: toolPage.slotKey!, image, prompt, seq: Date.now() }) : undefined}
-                  onRepair={(type, platform, url, prompt) => { const existing = Object.values(slotIndex).find((slot) => slot.url === url); setToolPage({ type, platform, slotKey: existing?.key ?? null, source: existing ?? { key: '', type, platform, url, size: '', prompt }, promptOverride: prompt, seq: Date.now() }); }}
-                />
-              )
-            )}
+            {/* 工具工作台（整页）：实例保持挂载、切换仅隐藏——运行中的任务后台继续，切回可看结果；AI 详情页走 DetailWorkbench，其余为单图工具工作台 */}
+            {toolPages.map((page) => {
+              const visible = tab === 'tool' && toolPage?.seq === page.seq;
+              return (
+                <div key={page.seq} className={visible ? '' : 'hidden'}>
+                  {page.type === '详情页' ? (
+                    <DetailWorkbench
+                      images={detailImages}
+                      models={selection}
+                      initialName={studioInput?.productName ?? ''}
+                      initialPoints={studioInput?.sellingPoints ?? ''}
+                      initialPlatforms={studioInput?.platforms ?? ['Amazon']}
+                      initialTone={studioInput?.detailTone ?? '专业可信'}
+                      onBack={() => setTab(studioInput ? 'studio' : 'create')}
+                      backLabel={studioInput ? '返回生成工作台' : '返回创作工作台'}
+                      onBusyChange={(busy) => handleToolBusyChange(page.seq, busy)}
+                      idScope={page.seq}
+                    />
+                  ) : (
+                    <ToolWorkbench
+                      type={page.type}
+                      platform={page.platform}
+                      current={page.slotKey ? slotIndex[page.slotKey] ?? null : page.source ?? null}
+                      promptOverride={page.promptOverride}
+                      models={selection}
+                      onBack={() => setTab(studioInput ? 'studio' : 'create')}
+                      backLabel={studioInput ? '返回生成工作台' : '返回创作工作台'}
+                      onApplied={page.slotKey ? (image, prompt) => setSlotUpdate({ key: page.slotKey!, image, prompt, seq: Date.now() }) : undefined}
+                      onRepair={(type, platform, url, prompt) => { const existing = Object.values(slotIndex).find((slot) => slot.url === url); openToolPage({ type, platform, slotKey: existing?.key ?? null, source: existing ?? { key: '', type, platform, url, size: '', prompt }, promptOverride: prompt, seq: Date.now() }); }}
+                      onBusyChange={(busy) => handleToolBusyChange(page.seq, busy)}
+                      idScope={page.seq}
+                      productFacts={[studioInput?.productName, studioInput?.sellingPoints].filter(Boolean).join('；') || undefined}
+                    />
+                  )}
+                </div>
+              );
+            })}
             {tab === 'studio' && !studioInput && <EmptyStudio onCreate={() => setTab('create')} />}
           </div>
           <RightPanel catalog={catalog} selection={selection} onChange={setSelection} error={error} />

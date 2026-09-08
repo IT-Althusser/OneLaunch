@@ -116,7 +116,7 @@ export async function localizeImage(req: LocalizeRequest): Promise<{ image: Gene
   return payload;
 }
 
-export async function complianceCheck(req: { imageUrl: string; imageType?: string; platform: string; market: string; visionModel?: string }): Promise<ComplianceResult> {
+export async function complianceCheck(req: { imageUrl: string; imageType?: string; platform: string; market: string; visionModel?: string; productFacts?: string; referenceImageUrl?: string }): Promise<ComplianceResult> {
   return apiJson<ComplianceResult>('/api/compliance-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) });
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { generateDetailPages } from '../api/client';
 import { DetailPages } from './DetailPages';
 import { ImageLightbox } from './ImageLightbox';
@@ -21,6 +21,8 @@ export function DetailWorkbench({
   initialTone,
   onBack,
   backLabel,
+  onBusyChange,
+  idScope,
 }: {
   images: GeneratedImage[];
   models: ModelSelection;
@@ -30,6 +32,8 @@ export function DetailWorkbench({
   initialTone: Tone;
   onBack: () => void;
   backLabel: string;
+  onBusyChange?: (busy: boolean) => void;
+  idScope?: string | number;
 }) {
   const [productName, setProductName] = useState(initialName);
   const [sellingPoints, setSellingPoints] = useState(initialPoints);
@@ -40,6 +44,14 @@ export function DetailWorkbench({
   const [pages, setPages] = useState<DetailPage[] | null>(null);
   const [copied, setCopied] = useState(false);
   const [preview, setPreview] = useState<{ url: string; type: string; platform: string; size: string } | null>(null);
+
+  /** busy 上报：避免闭包过期，用 ref 保持最新回调；卸载时通知父组件清理运行态 */
+  const busyChangeRef = useRef(onBusyChange);
+  useEffect(() => { busyChangeRef.current = onBusyChange; }, [onBusyChange]);
+  useEffect(() => { busyChangeRef.current?.(busy); }, [busy]);
+  useEffect(() => () => busyChangeRef.current?.(false), []);
+  /** 实例标识：多实例并存（后台任务保持挂载）时保证 DOM id 唯一 */
+  const detailId = idScope != null ? `detail-result-${idScope}` : 'detail-result';
 
   const ready = (productName.trim() !== '' || sellingPoints.trim() !== '') && platforms.length > 0;
 
@@ -188,7 +200,7 @@ export function DetailWorkbench({
         </section>
       )}
       {pages && pages.length > 0 && (
-        <div className="mt-5">
+        <div id={detailId} className="mt-5">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">生成结果 · {pages.length} 个平台版</span>
             <button type="button" onClick={copyAll}

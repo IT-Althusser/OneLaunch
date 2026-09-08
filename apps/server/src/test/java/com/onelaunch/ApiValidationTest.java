@@ -17,9 +17,13 @@ class ApiValidationTest {
         var mvc = MockMvcBuilders.standaloneSetup(new ApiController(mock(ImagePipelineService.class), mock(ModelRouterImageClient.class), vision)).build();
         String request = "{\"imageUrl\":\"https://example.test/a.png\",\"imageType\":\"尺寸图\",\"platform\":\"Amazon\",\"market\":\"US\"%s}";
         mvc.perform(post("/api/compliance-check").contentType(MediaType.APPLICATION_JSON).content(request.formatted(""))).andExpect(status().isOk());
-        verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", null);
+        verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", null, null);
         mvc.perform(post("/api/compliance-check").contentType(MediaType.APPLICATION_JSON).content(request.formatted(",\"productFacts\":\"宽38cm\""))).andExpect(status().isOk());
-        verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", "宽38cm");
+        verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", "宽38cm", null);
+        // P3 本体检验：referenceImageUrl 透传给视觉客户端（参考图在前、待检图在后）
+        mvc.perform(post("/api/compliance-check").contentType(MediaType.APPLICATION_JSON)
+                .content(request.formatted(",\"productFacts\":\"宽38cm\",\"referenceImageUrl\":\"https://example.test/p3.png\""))).andExpect(status().isOk());
+        verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", "宽38cm", "https://example.test/p3.png");
     }
 
     @Test void invalidStreamAndMissingComplianceInputsReturnReadable400() throws Exception {

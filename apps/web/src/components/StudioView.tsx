@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { streamImagePipeline, regenerateSingle, imageProxyUrl } from '../api/client';
+import { streamImagePipeline, regenerateSingle, complianceCheck, imageProxyUrl } from '../api/client';
 import { DetailPages } from './DetailPages';
 import { ImageLightbox } from './ImageLightbox';
 import { ComplianceIssues } from './ComplianceIssues';
@@ -17,6 +17,25 @@ import {
 } from '../types';
 
 const slotKey = (platform: string, type: string) => `${platform}||${type}`;
+
+/** 平台默认投放市场（与后端 ImagePipelineService.marketForPlatform 一致）：槽位重生成自动复检用 */
+function marketForPlatform(platform: string): string {
+  switch (platform) {
+    case 'TikTok Shop': case 'Shopee': return '东南亚';
+    case 'Temu': return '欧盟';
+    default: return 'US';
+  }
+}
+
+/** 同一平台/图类只保留最终审查状态，避免首轮与修复结果在摘要中重复出现。 */
+function mergeQa(records: QaRecord[]): QaRecord[] {
+  const bySlot = new Map<string, QaRecord>();
+  for (const record of records) {
+    const key = record.platform ? `${record.platform}||${record.type}` : record.url;
+    bySlot.set(key, record);
+  }
+  return Array.from(bySlot.values());
+}
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback;
@@ -70,6 +89,7 @@ export function StudioView({
   slotUpdate,
   onSlotUpdateConsumed,
   onNewTask,
+  onRunningChange,
 }: {
   input: ImagePipelineInput;
   models: ModelSelection;
@@ -78,6 +98,7 @@ export function StudioView({
   slotUpdate?: { key: string; image: GeneratedImage; prompt: string; seq: number } | null;
   onSlotUpdateConsumed?: () => void;
   onNewTask: () => void;
+  onRunningChange?: (running: boolean) => void;
 }) {
   const startedRef = useRef(false);
   const consoleRef = useRef<HTMLDivElement>(null);
@@ -88,6 +109,7 @@ export function StudioView({
   const [running, setRunning] = useState(true);
   const [startedAt] = useState(() => Date.now());
   const [elapsed, setElapsed] = useState(0);
+  const [imageWorkComplete, setImageWorkComplete] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [editorError, setEditorError] = useState('');
@@ -108,19 +130,23 @@ export function StudioView({
   const totalSlots = Object.keys(slots).length;
   const doneCount = Object.values(slots).filter((s) => s.status === 'done').length;
   const currentQa = (result?.qa ?? []).filter((q) => Object.values(slots).some((s) => s.url === q.url));
-  const qaStats = `${doneCount} 图 · 质检 ${currentQa.filter((q) => q.status !== 'manual_review' && q.model).length} · 拦截 ${currentQa.filter((q) => q.status === 'failed' || (q.status == null && q.model && !q.passed)).length} · 建议 ${currentQa.reduce((n, q) => n + (q.complianceIssues?.length || q.issues?.length || 0), 0)} · 待复检 ${currentQa.filter((q) => q.status === 'manual_review' || (!q.status && !q.model)).length}`;
+  const qaStats = `${doneCount} 图 · 已质检 ${currentQa.filter((q) => q.status !== 'manual_review' && q.model).length} · 未通过 ${currentQa.filter((q) => q.status === 'failed' || (q.status == null && q.model && !q.passed)).length} · 待复检 ${currentQa.filter((q) => q.status === 'manual_review' || (!q.status && !q.model)).length}`;
   const currentImages = Object.entries(slots).filter(([, s]) => s.url).map(([key, s]) => ({ platform: key.split('||')[0], type: key.split('||')[1] as ImageType, url: s.url!, size: s.size ?? '' }));
 
   useEffect(() => {
     // 任务结束（完成/失败/中断）即停表，避免「已完成」后耗时仍走动
-    if (!running) return;
+    if (!running || imageWorkComplete) return;
     const timer = setInterval(() => setElapsed(Date.now() - startedAt), 1000);
     return () => clearInterval(timer);
-  }, [running, startedAt]);
+  }, [running, imageWorkComplete, startedAt]);
 
   useEffect(() => {
     if (consoleRef.current) consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
   }, [logs]);
+
+  useEffect(() => {
+    onRunningChange?.(running);
+  }, [running, onRunningChange]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -147,10 +173,25 @@ export function StudioView({
           setSlots((prev) => ({ ...prev, [key]: { ...prev[key], status: 'failed', error: str(data.error, '生成失败') } }));
           break;
         case 'qa':
-          setResult((prev) => { const record = data as unknown as QaRecord; const state = prev ?? { steps: [], images: [], qa: [] }; return { ...state, qa: [...state.qa.filter((q) => record.platform ? !(q.platform === record.platform && q.type === record.type) : q.url !== record.url), record] }; });
+          setResult((prev) => {
+            const record = data as unknown as QaRecord;
+            const state = prev ?? { steps: [], images: [], qa: [] };
+            return { ...state, qa: mergeQa([...state.qa, record]) };
+          });
+          break;
+        case 'compliance_complete':
+          {
+            // 图片生产与逐图合规结束：停表并提示详情页转后台；不再自动跳转合规检测工作台，结果留在本页查看
+            setImageWorkComplete(true);
+            setElapsed(Date.now() - startedAt);
+            setLogs((prev) => [...prev, { text: '—— 图片生成与合规检测完成，详情页转入后台编排 ——', time: nowTime() }]);
+          }
           break;
         case 'done':
-          setResult(data as unknown as ImagePipelineResult);
+          {
+            const finalResult = data as unknown as ImagePipelineResult;
+            setResult({ ...finalResult, qa: mergeQa(finalResult.qa ?? []) });
+          }
           setRunning(false);
           setElapsed(Date.now() - startedAt);
           setLogs((prev) => [...prev, { text: '—— 任务完成 ——', time: nowTime() }]);
@@ -191,12 +232,53 @@ export function StudioView({
       setSlots((prev) => ({ ...prev, [key]: { ...prev[key], status: 'done', url: image.url, size: image.size, prompt, error: undefined } }));
       setLogs((prev) => [...prev, { text: `✓ ${editor.type}（${editor.platform}）已更新 · ${image.size}`, time: nowTime() }]);
       setEditor(null);
+      // 生成完毕自动复检（含 P3 本体一致性检验）：与流水线 QA 同一判定口径
+      void recheckSlot(editor, image.url);
     } catch (e) {
       const message = (e as Error).message;
       setEditorError(message);
       setLogs((prev) => [...prev, { text: `✗ ${editor.type} 更新失败：${message}`, time: nowTime() }]);
     } finally {
       setBusyKey(null);
+    }
+  }
+
+  /** 槽位重生成后的自动合规复检：与流水线 QA 同口径（同 prompt、P3 参考图、productFacts 拼接一致），结果按槽位覆盖 QA 记录 */
+  async function recheckSlot(editor: Editor, imageUrl: string) {
+    try {
+      setLogs((prev) => [...prev, { text: `质检 Agent：正在复检 ${editor.type}（${editor.platform}）…`, time: nowTime() }]);
+      const checked = await complianceCheck({
+        imageUrl,
+        imageType: editor.type as ImageType,
+        platform: editor.platform,
+        market: marketForPlatform(editor.platform),
+        visionModel: models.visionModel,
+        productFacts: [input.productName, input.sellingPoints].filter(Boolean).join('；') || undefined,
+        referenceImageUrl: input.referenceImages?.[0],
+      });
+      const record: QaRecord = {
+        platform: editor.platform,
+        type: editor.type as ImageType,
+        url: imageUrl,
+        passed: checked.passed,
+        status: checked.passed ? 'passed' : 'failed',
+        comment: checked.summary,
+        issues: checked.issues,
+        model: checked.model,
+        suggestedPrompt: checked.suggestedPrompt,
+        market: marketForPlatform(editor.platform),
+        complianceIssues: checked.complianceIssues,
+        passReasons: checked.passReasons,
+      };
+      setResult((prev) => {
+        const state = prev ?? { steps: [], images: [], qa: [] };
+        return { ...state, qa: mergeQa([...state.qa, record]) };
+      });
+      setLogs((prev) => [...prev, { text: checked.passed
+        ? `✓ 复检通过（${editor.platform} · ${editor.type}）：${checked.summary}`
+        : `△ 复检未通过（${editor.platform} · ${editor.type}），可在质检摘要按修复指令处理`, time: nowTime() }]);
+    } catch (e) {
+      setLogs((prev) => [...prev, { text: `✗ 复检失败：${(e as Error).message}`, time: nowTime() }]);
     }
   }
 
@@ -233,7 +315,7 @@ export function StudioView({
       <div className="panel mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 px-6 py-4">
         {(() => {
           const finalState = !running && !fatal ? finalStatus(doneCount, totalSlots) : null;
-          const label = running ? '生成中' : fatal ? '任务失败' : finalState!.label;
+          const label = running ? (imageWorkComplete ? '详情页编排中' : '生成与检测中') : fatal ? '任务失败' : finalState!.label;
           const tone = running ? 'bg-[#fff1ed] text-[#c84f36]' : fatal ? 'bg-[#fdeceb] text-[#a44836]' : finalState!.tone;
           const dot = running ? 'animate-pulse bg-[#ef6a4c]' : fatal ? 'bg-[#d9534f]' : finalState!.dot;
           return (
@@ -480,24 +562,32 @@ function QaSummary({
         {qa.map((q, i) => {
           const slotEntry = Object.entries(slots).find(([, s]) => s.url === q.url);
           return (
-          <div key={i} className="rounded-lg border border-[#e8e2d9] px-3 py-2">
+          <div key={`${q.platform ?? ''}||${q.type}||${q.url}`} className="rounded-lg border border-[#e8e2d9] px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold ${q.status === 'manual_review' || (!q.status && !q.model) ? 'bg-[#fdf3e2] text-[#9a6b2f]' : q.status === 'passed' || (q.status == null && q.passed) ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${q.status === 'manual_review' || (!q.status && !q.model) ? 'bg-[#e0a23c]' : q.status === 'passed' || (q.status == null && q.passed) ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{q.status === 'manual_review' || (!q.status && !q.model) ? '待人工复检' : q.status === 'passed' || (q.status == null && q.passed) ? '通过' : '未通过'}</span>
               <span className="text-xs font-semibold text-[#39342e]">{q.platform} · {q.type} · {q.market}</span>
               {q.model && <span className="shrink-0 rounded-full bg-[#eee9e1] px-2 py-0.5 text-[9px] font-bold text-[#6f685e]">{q.model}</span>}
             </div>
             <p className="mt-2 break-words text-xs leading-relaxed text-[#6f685e]">{q.comment}</p>
+            {q.passed && q.passReasons && q.passReasons.length > 0 && (
+              <div className="mt-2 rounded-lg bg-[#e9f7ee] px-3 py-2">
+                <p className="text-[10px] font-bold tracking-[0.12em] text-[#1d7a44]">通过依据</p>
+                <ul className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-[#2e6845]">
+                  {q.passReasons.map((reason, j) => <li key={j}>· {reason}</li>)}
+                </ul>
+              </div>
+            )}
             {q.issues && q.issues.length > 0 && !q.complianceIssues?.length && (
               <ul className="mt-1.5 list-disc space-y-0.5 pl-6 text-[10px] leading-relaxed text-[#a44836]">
                 {q.issues.map((issue, j) => <li key={j}>{issue}</li>)}
               </ul>
             )}
             <ComplianceIssues issues={q.complianceIssues ?? []} />
-            {/* 未通过时给出符合规范的修复提示词样例：可复制，或一键去工作台修复 */}
+            {/* 未通过时给出符合规范、可直接执行的修复指令：可复制直接使用，或一键去工作台修复 */}
             {!q.passed && q.suggestedPrompt && (
               <div className="mt-2 rounded-lg bg-[#f4f1eb] p-2.5">
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">修复提示词样例 · 已按平台规范生成</span>
+                  <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">修复指令 · 可直接复制使用，或一键带入工作台修复</span>
                   <span className="flex shrink-0 gap-1.5">
                     <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(q.suggestedPrompt!); setCopiedIdx(i); setCopyError(''); } catch { setCopyError('复制失败，请手动选中提示词复制'); } }}
                       className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">

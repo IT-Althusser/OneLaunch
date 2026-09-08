@@ -100,7 +100,7 @@ mvn -f apps/server/pom.xml spring-boot:run
 
 ```bash
 MODEL_ROUTER_API_KEY=sk-xxx   # 必填，算力审核通过后发放
-# PORT=3100                    # 可选
+# PORT=3101                    # 可选
 # MODEL_ROUTER_BASE_URL=...    # 可选，默认 Token Plan 专属地址
 # MODEL_ROUTER_TEXT_MODEL=qwen3.7-max        # 可选，文本模型
 # MODEL_ROUTER_VISION_MODEL=qwen3.6-plus     # 可选，白底图视觉质检模型（126 清单内具备视觉能力）
@@ -141,8 +141,8 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - `POST /api/images/set/stream`：同上但为 SSE 流式（事件：log / profile / image_start / image_done / image_fail / qa / done / fatal）。
 - `POST /api/images/single`：单图生成（三分支：文生图 / referenceImages 参考图生成 / sourceUrl 基于已生成图修改），供侧栏工具工作台与槽位「重新生成 / 修改」。
 - `POST /api/images/localize`：图片本地化（同步图生图编辑；支持场景/文字/模特维度、目标语言和模特形象）。
-- `POST /api/compliance-check`：单图跨境合规检测（平台规范、目标市场广告法、文字准确性与其他问题，返回结构化建议）。
-- 合规规则知识库位于 `apps/server/src/main/resources/compliance-rules/`；缺失文件回退内置文案并告警，五图生成风格规则暂留代码。
+- `POST /api/compliance-check`：单图合规检测（合并 P3 本体检验：`referenceImageUrl` 传商品原始参考图时，参考图+待检图一次视觉调用同时输出「①平台规范与图类要求 ②商品本体一致性」两项结论；不传时仅平台规范与图类要求。检测范围仅平台相关——不含商标授权、广告法与市场法规；dimension 枚举：平台规范/商品一致性/文字准确性/其他）。
+- 合规规则知识库位于 `apps/server/src/main/resources/compliance-rules/`；platform 规则注入质检提示词，market 规则仅保留知识库与来源展示（2026-09-08 起市场广告法退出判定）；缺失文件回退内置文案并告警，五图生成风格规则暂留代码。
 - `POST /api/detail-page`：独立 AI 详情页自动化（不依赖五图流水线）：名称/卖点 + 平台多选 + 语气 → 画像 + 按平台 AI 组合配图引用与文案（`generatedTypes` 传已有生成图类型供引用）；AI 编排失败降级模板。供侧栏「AI 详情页」工作台调用。
 
 完整接入方式见 `docs/integration-guide.md`，运维见 `docs/runbook.md`，架构见 `docs/architecture.md`。
@@ -152,7 +152,10 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
 - **平台策略**：每个目标平台均生成全部五图（10 图 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化风格与合规规则（`platformRule`），多平台出图互不雷同、贴合各平台自身特色。
 - **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。两种模式的白底图未通过且有修复提示词时均重试一次，二次检查沿用当前范围；其他图仅输出建议。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
+- **白底判定容差（踩坑警示，改检测提示词必须保留）**：AI 生成图的"纯白"实际为 RGB 245–254 带轻微压缩噪点，检测端苛求 RGB 255 会把正常噪点判"高噪点"，修复循环永不收敛；`ModelRouterVisionClient` 检测提示词已注入容差（各通道 ≥245 且均匀干净即合规，轻微噪点/极浅渐变不算违规），生成端 `editFromSourcePrompt` 仍要求完全重绘背景，两端容差必须匹配。
+- **工具工作台后台运行**：前端单图工具工作台实例常驻挂载、切换仅隐藏（`App.tsx` 的 `toolPages`/`toolPage`），生成中切走不打断任务；单图工具生成五类图后自动调 `/api/compliance-check` 复检（带锚点参考图做 P3 本体检验）并支持一键按修复指令再生成；生成工作台槽位「重新生成/修改」成功后同样自动复检。不得改回 `tab === 'tool'` 条件挂载（会中断运行中的任务）。
 - **角色分工**：画像 Agent → 提示词 Agent → 生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent；五个职责角色由 Spring Boot 编排，提示词角色使用模板与画像，不额外调用 LLM，质检/合规在 all 模式共用一次视觉调用。
+- **P3 本体检验（2026-09-08）**：P3 = 用户原始商品参考图（首张），是商品本体唯一真实性基准。质检时与待检图一起传入视觉模型（合并一次调用），输出平台合规 + 商品本体一致性（形状/结构/颜色/材质/比例/固有印刷一致、无新增装饰、无部件缺失）两项结论；背景差异不算问题（背景按图类重绘）。五图流水线每图、单图工具复检、槽位重生成复检三个触发点同口径；修复轮参考图为 `[当前图, P3]`（当前图为编辑基准、P3 为商品身份锚点，其背景不得采用防瓷砖回流）。生成端与质检端的商品本体约束必须保持同口径（`referenceConstraintBlock` 共享方法）。
 
 ## 代码规范
 
@@ -160,5 +163,7 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - Jackson 3：后端统一 `import tools.jackson.databind.JsonNode`（不是 `com.fasterxml.jackson`）。
 - 模型 ID 集中在 `apps/server/src/main/resources/application.yml` 管理，禁止散落硬编码。
 - 错误处理：对 Model Router 返回的 4xx/5xx 给出可读提示，不吞异常。
+- 走 `.formatted()` 的提示词模板中所有字面 `%` 必须写成 `%%`（如 `85%%`）；漏写会在运行时抛 `Conversion` 异常，导致对应端点全量 400。
+- 发给图片编辑模型的包装提示词不得包含与用户修改指令冲突的保持性约束（如指令要求移除文字时不得同时要求「固有标识不变」），冲突会让模型整体重绘；`suggestedPrompt` 必须是可直接执行的祈使句修复指令，不得写成审核说明。
 - 提交信息遵循 Conventional Commits（feat/fix/docs/refactor 等）。
 - 新增功能前先对照 `README.md` 硬性要求自检，不得偏离图片生成方向。

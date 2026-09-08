@@ -19,6 +19,10 @@ apps/web/vite.config.d.ts
 .agents/
 .codex/
 .impeccable/
+.trae/
+
+# 本地一次性脚本（不入库）
+tools/
 
 # 日志与临时文件
 *.log

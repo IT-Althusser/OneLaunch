@@ -18,15 +18,16 @@ class ComplianceRuleLibraryTest {
     }
 
     @Test void addingAndRemovingRuleFileChangesPromptAfterReload() throws Exception {
-        Path rule = Path.of("target/classes/compliance-rules/market/reload-test.md");
+        // 检测范围收窄后仅平台规则注入 prompt（市场广告规则退出判定），热加载验证改用 platform 文件
+        Path rule = Path.of("target/classes/compliance-rules/platform/reload-test.md");
         assertFalse(Files.exists(rule));
         try {
             Files.writeString(rule, "<!-- test source -->\n- 测试规则第一版", StandardCharsets.UTF_8);
-            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "Amazon", "reload-test").contains("测试规则第一版"));
+            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "reload-test", false).contains("测试规则第一版"));
             Files.writeString(rule, "<!-- test source -->\n- 测试规则第二版", StandardCharsets.UTF_8);
-            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "Amazon", "reload-test").contains("测试规则第二版"));
+            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "reload-test", false).contains("测试规则第二版"));
             Files.delete(rule);
-            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "Amazon", "reload-test").contains("市场广告规则：广告与商品展示应真实"));
+            assertTrue(client(new ComplianceRuleLibrary()).compliancePrompt("场景图", "reload-test", false).contains("平台规范：保持商品清晰完整"));
         } finally { Files.deleteIfExists(rule); }
     }
 

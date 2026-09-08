@@ -30,14 +30,16 @@ public final class ApiModels {
      * 图片质检记录：status 是审核状态的权威语义；未完成审核时 passed=false。
      * 降级人工复检时 status=manual_review，model/issues/suggestedPrompt 为 null。
      */
-    public record QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform, String status) {
-        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt) { this(type, url, passed, comment, issues, model, suggestedPrompt, null, List.of(), null, statusFor(passed)); }
-        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, null, statusFor(passed)); }
-        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, platform, statusFor(passed)); }
+    public record QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform, String status, List<String> passReasons) {
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt) { this(type, url, passed, comment, issues, model, suggestedPrompt, null, List.of(), null, statusFor(passed), List.of()); }
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, null, statusFor(passed), List.of()); }
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, platform, statusFor(passed), List.of()); }
+        public QaRecord(String type, String url, boolean passed, String comment, List<String> issues, String model, String suggestedPrompt, String market, List<ModelRouterVisionClient.Issue> complianceIssues, String platform, String status) { this(type, url, passed, comment, issues, model, suggestedPrompt, market, complianceIssues, platform, status, List.of()); }
 
         public static String statusFor(boolean passed) { return passed ? "passed" : "failed"; }
     }
-    public record ComplianceCheckRequest(String imageUrl, String imageType, String platform, String market, String visionModel, String productFacts) {}
+    /** referenceImageUrl：商品原始参考图（P3），传入时合并一次视觉调用做商品本体一致性检验；可空。 */
+    public record ComplianceCheckRequest(String imageUrl, String imageType, String platform, String market, String visionModel, String productFacts, String referenceImageUrl) {}
 
     public record DetailPageSection(
             String type,
