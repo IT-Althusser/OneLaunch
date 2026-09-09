@@ -64,7 +64,7 @@
   <header>
     <div class="eyebrow">场景一 · AI 智能上新 · AI 商品图片生成</div>
     <h1>OneLaunch · 一键出海 — 五图生成业务流程图</h1>
-    <div class="sub">复赛版 · 2026-09-06 · 输入名称/卖点/参考图≤6 → 多智能体五图流水线 → 合规建议与本地化版本</div>
+    <div class="sub">复赛版 · 2026-09-09 · 输入名称/卖点/参考图≤6 → 多智能体五图流水线（含 P3 本体检验）→ 合规建议与本地化版本</div>
   </header>
 
   <figure>
@@ -136,7 +136,7 @@
       <text class="numt" x="437" y="460" text-anchor="middle" font-size="15">3</text>
       <rect class="step" x="458" y="408" width="362" height="92" rx="10"></rect>
       <text class="stept" x="639" y="438" text-anchor="middle" font-size="14">五图生成 + 多平台风格适配</text>
-      <text class="steps" x="639" y="460" text-anchor="middle" font-size="11">按图类提示词逐类生成（同步调用）</text>
+      <text class="steps" x="639" y="460" text-anchor="middle" font-size="11">逐类生成 · 白底/对比图优先确定性直出（0% 重绘）</text>
       <text class="steps" x="639" y="478" text-anchor="middle" font-size="11">每平台全五图 · 提示词按平台规范差异化</text>
       <rect class="data" x="40" y="416" width="330" height="76" rx="8"></rect>
       <text class="datat" x="205" y="444" text-anchor="middle" font-size="12.5">五图套图</text>
@@ -155,21 +155,21 @@
       <text class="numt" x="437" y="586" text-anchor="middle" font-size="15">4</text>
       <rect class="step" x="458" y="534" width="362" height="92" rx="10"></rect>
       <text class="stept" x="639" y="564" text-anchor="middle" font-size="14">质检 Agent + 合规 Agent</text>
-      <text class="steps" x="639" y="586" text-anchor="middle" font-size="11">背景纯度 / 商品完整性 / 水印文字 / 占比规范</text>
-      <text class="steps" x="639" y="604" text-anchor="middle" font-size="11">qwen3.6-plus 自动审核 · 支持单图重生成</text>
+      <text class="steps" x="639" y="586" text-anchor="middle" font-size="11">平台合规 + P3 商品本体一致性（以用户参考图为基准）</text>
+      <text class="steps" x="639" y="604" text-anchor="middle" font-size="11">qwen3.6-plus 全五图自动审核 · 未过自动修复回流</text>
       <rect class="data" x="40" y="542" width="330" height="76" rx="8"></rect>
       <text class="datat" x="205" y="570" text-anchor="middle" font-size="12.5">视觉质检</text>
       <text class="datas" x="205" y="590" text-anchor="middle" font-size="10.5">自动质检 + 未通过项明细</text>
       <text class="datas" x="205" y="606" text-anchor="middle" font-size="10.5">把平台拒登风险拦在上架之前</text>
       <path class="degrade" d="M370,580 L416,580" marker-end="url(#arg)"></path>
       <rect class="model" x="870" y="542" width="330" height="76" rx="8"></rect>
-      <text class="modelt" x="1035" y="570" text-anchor="middle" font-size="12.5">视觉质检（qwen3.6-plus）</text>
-      <text class="models" x="1035" y="590" text-anchor="middle" font-size="10.5">质检项内置标准 · 结果页标注结论</text>
-      <text class="models" x="1035" y="606" text-anchor="middle" font-size="10.5">质检失败时自动降级为人工复检提醒</text>
+      <text class="modelt" x="1035" y="570" text-anchor="middle" font-size="12.5">视觉质检 + P3 本体检验（qwen3.6-plus）</text>
+      <text class="models" x="1035" y="590" text-anchor="middle" font-size="10.5">参考图 + 待检图一次视觉调用双结论</text>
+      <text class="models" x="1035" y="606" text-anchor="middle" font-size="10.5">视觉调用失败时降级为人工复检提醒</text>
       <path class="degrade" d="M870,580 L824,580" marker-end="url(#arg)"></path>
       <!-- 质检回流 -->
       <path class="loop" d="M458,560 C300,560 300,470 452,462" marker-end="url(#arw)"></path>
-      <text class="loopt" x="270" y="522" text-anchor="middle" font-size="11">质检回流 → 单图重生成</text>
+      <text class="loopt" x="270" y="522" text-anchor="middle" font-size="11">质检回流 → 修复重生成（当前图 + P3 双参考）</text>
       <path class="arrow" d="M620,626 L620,656" marker-end="url(#ar)"></path>
 
       <!-- 步骤5 输出 -->
@@ -220,12 +220,12 @@
       <text class="ios" x="920" y="944" text-anchor="middle" font-size="11">图片制作成本下降 80% 以上 · 白底视觉质检降低拒登率</text>
       <path class="arrow" d="M600,928 L636,928" marker-end="url(#ar)"></path>
     </svg>
-    <figcaption>图 2 · 五图生成业务流程：输入 → 商品画像 → 提示词设计 → 五图生成与平台适配 → 白底图视觉质检 → 多平台上架图包（本地化支持场景/文字/模特三维度）</figcaption>
+    <figcaption>图 2 · 五图生成业务流程：输入 → 商品画像 → 提示词设计 → 五图生成与平台适配 → 全五图质检与 P3 本体检验 → 多平台上架图包（本地化支持场景/文字/模特三维度）</figcaption>
   </figure>
 
   <div class="legend">
     <b>图例：</b>绿色实心 = 输入/输出 · 白底绿框 = 流水线步骤 · 深色块 = 调用模型（全部经 Model Router API，Bearer Token 认证）· 浅色块 = 中间数据 · 橙色虚线 = 质检回流重生成 · 灰色虚线 = 数据流/降级路径。<br>
-    <b>流程要点：</b>① 每一步失败都有降级策略（画像失败降级文本拼接、单图失败不中断整体）；② 白底图视觉质检（qwen3.6-plus 内容理解与合规检测）把平台拒登风险拦在上架前；③ 平台风格要求内置提示词模板，新增平台只加一条模板；④ 全同步链路：文本/文生图/图生图统一走 /chat/completions，简单可靠易排障。
+    <b>流程要点：</b>① 每一步失败都有降级策略（画像失败降级文本拼接、单图失败不中断整体、暗光参考图无法白化时回退模型生成）；② 全五图视觉质检 + P3 本体检验（qwen3.6-plus 以用户原始参考图为商品唯一真实性基准，一次调用同时输出平台合规与本体一致性双结论）把平台拒登与商品失真风险拦在上架前；③ 平台风格要求内置提示词模板，新增平台只加一条模板；④ 全同步链路：文本/文生图/图生图统一走 /chat/completions，简单可靠易排障。
   </div>
 </div>
 </body>

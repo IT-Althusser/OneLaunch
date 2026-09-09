@@ -64,7 +64,7 @@
   <header>
     <div class="eyebrow">场景一 · AI 智能上新 · AI 商品图片生成</div>
     <h1>OneLaunch · 一键出海 — 技术架构图</h1>
-    <div class="sub">复赛版 · 2026-09-06 · React/Vite → Spring Boot → 画像 Agent → 提示词 Agent → 图片生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent → SSE/REST</div>
+    <div class="sub">复赛版 · 2026-09-09 · React/Vite → Spring Boot → 画像 Agent → 提示词 Agent → 图片生成工具（含确定性直出）→ 质检 Agent（含 P3 本体检验）→ 合规 Agent → 详情页 Agent → SSE/REST</div>
   </header>
 
   <figure>
@@ -89,7 +89,7 @@
         <text class="chips" x="587" y="81" text-anchor="middle" font-size="10">Amazon · TikTok Shop · Temu · Shopee</text>
         <rect class="box1" x="722" y="36" width="246" height="62" rx="8"></rect>
         <text class="box1t" x="845" y="62" text-anchor="middle">流水线步骤进度</text>
-        <text class="chips" x="845" y="81" text-anchor="middle" font-size="10">画像 → 提示词 → 生成 → 视觉质检</text>
+        <text class="chips" x="845" y="81" text-anchor="middle" font-size="10">画像 → 提示词 → 生成 → 质检与 P3 本体检验</text>
         <rect class="box1" x="980" y="36" width="228" height="62" rx="8"></rect>
         <text class="box1t" x="1094" y="62" text-anchor="middle">套图画廊 + 质检标记</text>
         <text class="chips" x="1094" y="81" text-anchor="middle" font-size="10">按平台分组 · 支持单图重生成</text>
@@ -133,12 +133,12 @@
         <text class="agents" x="587" y="322" text-anchor="middle" font-size="10.5">画像 → 五图提示词</text>
         <rect class="agent" x="722" y="258" width="246" height="78" rx="8"></rect>
         <text class="agentt" x="845" y="286" text-anchor="middle" font-size="13">五图生成</text>
-        <text class="agents" x="845" y="306" text-anchor="middle" font-size="10.5">wan2.7-image-pro</text>
-        <text class="agents" x="845" y="322" text-anchor="middle" font-size="10.5">每平台全五图 · 提示词按平台差异化</text>
+        <text class="agents" x="845" y="306" text-anchor="middle" font-size="10.5">wan2.7-image-pro · 每平台全五图</text>
+        <text class="agents" x="845" y="322" text-anchor="middle" font-size="10.5">白底/对比图确定性直出 · 平台差异化</text>
         <rect class="agent" x="980" y="258" width="228" height="78" rx="8"></rect>
         <text class="agentt" x="1094" y="286" text-anchor="middle" font-size="13">质检 Agent / 合规 Agent</text>
-        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">qwen3.6-plus · 五图检测 · 规则知识库</text>
-        <text class="agents" x="1094" y="322" text-anchor="middle" font-size="10.5">白底图合规视觉检测</text>
+        <text class="agents" x="1094" y="306" text-anchor="middle" font-size="10.5">qwen3.6-plus · 全五图检测 · 规则知识库</text>
+        <text class="agents" x="1094" y="322" text-anchor="middle" font-size="10.5">平台合规 + P3 商品本体一致性检验</text>
       </g>
       <path class="arrow" d="M705,352 L705,368" marker-end="url(#ar)"></path>
 
@@ -210,14 +210,14 @@
 
       <!-- 质检回流（右侧虚线） -->
       <path class="loop" d="M1224,679 C1236,679 1236,297 1212,297" marker-end="url(#ar)"></path>
-      <text class="note" x="1232" y="492" text-anchor="middle" font-size="10" transform="rotate(90 1232 492)">质检结论 · 支持单图重生成</text>
+      <text class="note" x="1232" y="492" text-anchor="middle" font-size="10" transform="rotate(90 1232 492)">质检结论 · 修复回流（当前图 + P3 双参考）</text>
     </svg>
-    <figcaption>图 1 · 复赛版技术架构：多智能体角色协作、规则知识库驱动合规检测，全部模型经阿里云百炼 Model Router API 同步调用</figcaption>
+    <figcaption>图 1 · 复赛版技术架构：多智能体角色协作、P3 本体检验 + 规则知识库驱动合规检测、确定性渲染直出，全部模型经阿里云百炼 Model Router API 同步调用</figcaption>
   </figure>
 
   <div class="legend">
     <b>图例：</b>绿色实心块 = 流水线能力（编排服务调度）· 深色块 = Model Router API 能力（统一 Bearer Token 认证）· 浅色块 = 数据与配置 · 虚线 = 质检回流。<br>
-    <b>架构要点：</b>① 画像先生成 — qwen3.7-max 先建商品画像，再驱动五图生成，保证生成图与商品特征一致；② 平台风格内置 — 风格/白底规范融入提示词模板，新增平台只加一条模板；③ 视觉质检 — qwen3.6-plus 对白底图做内容理解与合规检测，未通过项列明原因；④ 统一同步链路 — 文本/文生图/图生图/视觉理解全部走 /chat/completions，同步返回、易排障。
+    <b>架构要点：</b>① 画像先生成 — qwen3.7-max 先建商品画像，再驱动五图生成，保证生成图与商品特征一致；② 平台风格内置 — 风格/白底规范融入提示词模板，新增平台只加一条模板；③ 视觉质检与 P3 本体检验 — qwen3.6-plus 检测全五图平台合规，并以用户原始参考图（P3）为基准校验商品本体一致性（形状/结构/颜色/材质/固有印刷），未通过自动按修复指令回流重生成；④ 确定性直出 — 白底图、对比图优先走 Java 2D 确定性渲染（背景白化/全景+特写拼合），0% 模型重绘保真，失败才回退模型生成；⑤ 统一同步链路 — 文本/文生图/图生图/视觉理解全部走 /chat/completions，同步返回、易排障。
   </div>
 </div>
 </body>

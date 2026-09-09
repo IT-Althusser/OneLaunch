@@ -20,6 +20,7 @@ apps/web/vite.config.d.ts
 .codex/
 .impeccable/
 .trae/
+.trae-html-share-packages/
 
 # 本地一次性脚本（不入库）
 tools/
