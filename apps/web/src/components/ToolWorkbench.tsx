@@ -255,7 +255,7 @@ export function ToolWorkbench({
         return;
       }
       if (isLocalize) {
-        const localized = await localizeImage({ sourceUrl: nextRefs[0].src, targetMarket: market, instruction: nextPrompt, model: models.editModel, aspects, targetLanguage, modelProfile });
+        const localized = await localizeImage({ sourceUrl: nextRefs[0].src, targetMarket: market, instruction: nextPrompt, model: models.editModel, aspects, targetLanguage, modelProfile, editGateway: models.editGateway });
         setResult({ ...localized, applied: false });
         return;
       }
@@ -268,6 +268,7 @@ export function ToolWorkbench({
             referenceImages: nextMode === 'edit' || nextRefs.length === 0 ? undefined : nextRefs.map((r) => r.src),
             sourceUrl: editSourceUrl,
             model: nextActiveModel,
+            editGateway: models.editGateway,
           });
       setResult({ image, applied: false });
       // 生成即复检（含 P3 本体一致性）：锚点参考 = edit→源图 / regen→首张参考图；新图 URL 直传合规检测，结果内联展示，未通过可一键修复

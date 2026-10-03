@@ -228,6 +228,7 @@ export function StudioView({
         referenceImages: sourceUrl ? undefined : (refs.length > 0 ? refs : undefined),
         sourceUrl,
         model: sourceUrl ? models.editModel : (refs.length > 0 ? models.editModel : models.imageModel),
+        editGateway: models.editGateway,
       });
       setSlots((prev) => ({ ...prev, [key]: { ...prev[key], status: 'done', url: image.url, size: image.size, prompt, error: undefined } }));
       setLogs((prev) => [...prev, { text: `✓ ${editor.type}（${editor.platform}）已更新 · ${image.size}`, time: nowTime() }]);
