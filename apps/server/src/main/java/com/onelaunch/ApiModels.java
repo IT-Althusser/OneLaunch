@@ -20,7 +20,15 @@ public final class ApiModels {
             String textModel,
             /** 白底图视觉质检模型覆盖（可选，如 qwen3.6-plus，须具备视觉理解能力）。 */
             String visionModel,
-            String market) {}
+            String market,
+            /** 图生图网关路由：default=Token Plan 主网关（比赛口径，默认）；custom=服务端预配置的自定义网关（诊断用）。可空。 */
+            String editGateway) {
+        public ImagePipelineRequest(String productName, String sellingPoints, List<String> platforms, String detailTone,
+                                    List<String> referenceImages, String imageModel, String editModel, String textModel,
+                                    String visionModel, String market) {
+            this(productName, sellingPoints, platforms, detailTone, referenceImages, imageModel, editModel, textModel, visionModel, market, null);
+        }
+    }
 
     public record StepRecord(String step, String status, String detail) {}
 
@@ -70,9 +78,18 @@ public final class ApiModels {
             String platform,
             List<String> referenceImages,
             String sourceUrl,
-            String model) {}
+            String model,
+            String editGateway) {
+        public SingleImageRequest(String type, String prompt, String platform, List<String> referenceImages, String sourceUrl, String model) {
+            this(type, prompt, platform, referenceImages, sourceUrl, model, null);
+        }
+    }
 
-    public record LocalizeRequest(String sourceUrl, String targetMarket, String instruction, String model, List<String> aspects, String targetLanguage, String modelProfile) {}
+    public record LocalizeRequest(String sourceUrl, String targetMarket, String instruction, String model, List<String> aspects, String targetLanguage, String modelProfile, String editGateway) {
+        public LocalizeRequest(String sourceUrl, String targetMarket, String instruction, String model, List<String> aspects, String targetLanguage, String modelProfile) {
+            this(sourceUrl, targetMarket, instruction, model, aspects, targetLanguage, modelProfile, null);
+        }
+    }
 
     /** 独立 AI 详情页请求：名称与卖点至少其一；generatedTypes 为已有生成图类型集合（供 AI 引用配图），可空。 */
     public record DetailPageRequest(

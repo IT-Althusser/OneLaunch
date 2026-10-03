@@ -49,6 +49,7 @@ export function CreatePanel({
       referenceImages: refs.map((r) => r.src),
       imageModel: models.imageModel,
       editModel: models.editModel,
+      editGateway: models.editGateway,
       textModel: models.textModel,
       visionModel: models.visionModel,
       market,

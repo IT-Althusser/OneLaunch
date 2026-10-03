@@ -37,6 +37,8 @@ export interface ImagePipelineInput {
   /** 白底图视觉质检模型（须具备视觉理解能力，默认 qwen3.6-plus） */
   visionModel?: string;
   market?: string;
+  /** 图生图网关路由：default=Token Plan（比赛口径，默认）；custom=服务端预配置的自定义网关 */
+  editGateway?: 'default' | 'custom';
 }
 
 export interface GeneratedImage {
@@ -108,6 +110,7 @@ export interface SingleImageRequest {
   referenceImages?: string[];
   sourceUrl?: string;
   model?: string;
+  editGateway?: 'default' | 'custom';
 }
 
 /** 图片本地化请求（对应后端 POST /api/images/localize） */
@@ -119,6 +122,7 @@ export interface LocalizeRequest {
   aspects?: string[];
   targetLanguage?: string;
   modelProfile?: string;
+  editGateway?: 'default' | 'custom';
 }
 
 /** 独立 AI 详情页请求（对应后端 POST /api/detail-page）：名称与卖点至少其一 */
@@ -163,6 +167,11 @@ export interface ModelOption {
 export interface ModelCatalog {
   textToImage: ModelOption[];
   imageToImage: ModelOption[];
+  /** 图生图独立网关的模型清单（未配置覆盖时与 imageToImage 相同） */
+  editToImage?: ModelOption[];
+  /** 是否配置了图生图独立网关覆盖 */
+  editGateway?: boolean;
+  editError?: string;
   text: ModelOption[];
   other: ModelOption[];
   /** 具备视觉理解能力的模型（白底图质检/内容理解与合规检测） */
@@ -179,6 +188,8 @@ export interface ModelSelection {
   editModel: string;
   textModel: string;
   visionModel: string;
+  /** 图生图网关路由：默认走 Token Plan（比赛口径），自定义走服务端预配置网关 */
+  editGateway: 'default' | 'custom';
 }
 
 /** 单个图片槽位的实时状态（生成工作台） */

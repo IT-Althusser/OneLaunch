@@ -39,7 +39,7 @@ type ToolPageState = {
   seq: number;
 };
 
-const DEFAULT_SELECTION: ModelSelection = { imageModel: '', editModel: '', textModel: '', visionModel: '' };
+const DEFAULT_SELECTION: ModelSelection = { imageModel: '', editModel: '', textModel: '', visionModel: '', editGateway: 'default' };
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('create');
@@ -64,12 +64,18 @@ export default function App() {
       .then((c) => {
         setCatalog(c);
         // 网关清单可用时，把选择校准到真实存在的模型（默认项优先已验证）
-        setSelection((previous) => { const prev = c.defaults ?? previous; return ({
-          imageModel: pickModel(c.textToImage, prev.imageModel),
-          editModel: pickModel(c.imageToImage, prev.editModel),
-          textModel: pickModel(c.text, prev.textModel),
-          visionModel: pickModel(c.vision, prev.visionModel),
-        }); });
+        // 图生图模型清单跟随当前路由档位：默认档校准主网关清单，自定义档校准独立网关清单
+        setSelection((previous) => {
+          const prev = c.defaults ?? previous;
+          const editOptions = previous.editGateway === 'custom' && c.editToImage?.length ? c.editToImage : c.imageToImage;
+          return ({
+            imageModel: pickModel(c.textToImage, prev.imageModel),
+            editModel: pickModel(editOptions, prev.editModel),
+            textModel: pickModel(c.text, prev.textModel),
+            visionModel: pickModel(c.vision, prev.visionModel),
+            editGateway: previous.editGateway,
+          });
+        });
       })
       .catch((e: Error) => setError(e.message));
   }, []);

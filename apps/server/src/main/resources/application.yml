@@ -19,5 +19,22 @@ model-router:
   vision-model: ${MODEL_ROUTER_VISION_MODEL:qwen3.6-plus}
   image-model: ${MODEL_ROUTER_IMAGE_MODEL:wan2.7-image-pro}
   edit-model: ${MODEL_ROUTER_EDIT_MODEL:qwen-image-2.0}
+  # 图生图独立网关覆盖（诊断用，默认留空回落上方 base-url/api-key；比赛交付配置必须留空——所有调用须走 Token Plan）
+  edit-base-url: ${MODEL_ROUTER_EDIT_BASE_URL:}
+  edit-api-key: ${MODEL_ROUTER_EDIT_API_KEY:}
+  # 独立网关请求格式：chat=Token Plan 风格 /chat/completions（默认）；openai-images=OpenAI Images API /images/edits（gpt-image 系列等）
+  edit-api-style: ${MODEL_ROUTER_EDIT_API_STYLE:chat}
   timeout-seconds: ${MODEL_ROUTER_TIMEOUT_SECONDS:120}
   qa-scope: ${MODEL_ROUTER_QA_SCOPE:all}
+
+# 图像质量本地预检阈值与修复预算（ImagePrecheck / ImagePipelineService）。
+# 预检定位是快速失败闸门而非最终判定：阈值宁松勿紧防误杀，误杀会让好图进入不必要的修复轮。
+quality-policy:
+  precheck:
+    blur-variance: 50.0      # 拉普拉斯方差低于此值判画面模糊
+    noise-mad: 20.0          # 3x3 中值残差均值高于此值判全画幅重度噪点
+    scene-border-std: 8.0    # 场景图边缘帧亮度标准差低于此值判纯色/摄影棚无缝背景
+    skin-ratio: 0.02         # 模特图中心区肤色占比低于此值判未检测到人物
+  repair:
+    max-attempts: 2          # 修复轮次上限
+    min-severity: 高         # 视觉质检问题触发修复轮的最低严重度（高/中/低）；低严重度仅记录建议

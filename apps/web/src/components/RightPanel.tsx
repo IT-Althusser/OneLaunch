@@ -57,12 +57,24 @@ export function RightPanel({
   inline?: boolean;
   error?: string;
 }) {
+  // 图生图路由双档：默认（Token Plan，比赛口径）/ 自定义（服务端预配置网关，诊断用）。
+  // 密钥与地址只存在服务端 .env，前端仅发送模式标志；未配置自定义网关时该档不可选。
+  const editMode = selection.editGateway ?? 'default';
+  const editOptions = editMode === 'custom' ? (catalog?.editToImage ?? []) : (catalog?.imageToImage ?? []);
+  const editLabel = editMode === 'custom' ? '参考图 / 编辑 · 自定义网关' : '参考图 / 编辑 · Qwen-Image';
+  const imageModelCount = (editMode === 'custom' ? editOptions.length : catalog?.imageToImage.length) ?? 0;
+  const switchMode = (mode: 'default' | 'custom') => {
+    if (mode === editMode) return;
+    const options = mode === 'custom' ? (catalog?.editToImage ?? []) : (catalog?.imageToImage ?? []);
+    const preferred = options.find((o) => o.verified) ?? options[0];
+    onChange({ ...selection, editGateway: mode, editModel: preferred ? preferred.id : selection.editModel });
+  };
   return (
     <aside className={inline ? 'py-4' : 'hidden w-[300px] shrink-0 overflow-y-auto border-l border-[#e2ddd5] bg-[#f8f5ef] px-5 py-7 xl:block'}>
       <div className="sticky top-0">
         <header className="mb-5">
           <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">03</span>模型与调用</h2>
-          <p className="mt-1 break-words text-xs text-[#8d867c]">{catalog?.error || error || (catalog ? `网关在线 · ${catalog.textToImage.length + catalog.imageToImage.length} 个图片模型可用` : '正在读取网关模型清单…')}</p>
+          <p className="mt-1 break-words text-xs text-[#8d867c]">{catalog?.editError || catalog?.error || error || (catalog ? `网关在线 · ${catalog.textToImage.length + imageModelCount} 个图片模型可用` : '正在读取网关模型清单…')}</p>
         </header>
 
         {catalog ? (
@@ -75,14 +87,38 @@ export function RightPanel({
               value={selection.imageModel}
               onChange={(id) => onChange({ ...selection, imageModel: id })}
             />
-            <Select
-              id={`${inline ? 'compact-' : ''}model-edit`}
-              label="参考图 / 编辑 · Qwen-Image"
-              hint="图生图"
-              options={catalog.imageToImage}
-              value={selection.editModel}
-              onChange={(id) => onChange({ ...selection, editModel: id })}
-            />
+            <div>
+              <div className="mb-1.5 flex items-baseline gap-2">
+                <label className="min-w-0 flex-1 truncate text-xs font-semibold text-[#514b43]">图生图网关</label>
+                <span className="shrink-0 text-[10px] text-[#a49d92]">{editMode === 'custom' ? '诊断用' : '比赛口径'}</span>
+              </div>
+              <div className="mb-2 flex gap-1 rounded-[12px] bg-[#efe9df] p-1">
+                <button
+                  type="button"
+                  onClick={() => switchMode('default')}
+                  className={`flex-1 rounded-[9px] px-2 py-1.5 text-[11px] font-semibold transition-colors ${editMode === 'default' ? 'bg-[#fffdf9] text-[#17202b] shadow-sm' : 'text-[#8d867c] hover:text-[#514b43]'}`}
+                >
+                  默认（比赛）
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('custom')}
+                  disabled={!catalog.editGateway}
+                  title={catalog.editGateway ? '走服务端 .env 预配置的自定义网关与密钥' : '未配置：需在服务端 .env 设置 MODEL_ROUTER_EDIT_BASE_URL / MODEL_ROUTER_EDIT_API_KEY'}
+                  className={`flex-1 rounded-[9px] px-2 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${editMode === 'custom' ? 'bg-[#fffdf9] text-[#17202b] shadow-sm' : 'text-[#8d867c] hover:text-[#514b43]'}`}
+                >
+                  自定义
+                </button>
+              </div>
+              <Select
+                id={`${inline ? 'compact-' : ''}model-edit`}
+                label={editLabel}
+                hint="图生图"
+                options={editOptions}
+                value={selection.editModel}
+                onChange={(id) => onChange({ ...selection, editModel: id })}
+              />
+            </div>
             <Select
               id={`${inline ? 'compact-' : ''}model-text`}
               label="文案生成 · Qwen 系列"

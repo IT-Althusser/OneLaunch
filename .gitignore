@@ -32,3 +32,6 @@ tools/
 .vscode/
 .idea/
 .DS_Store
+
+# 本地安全扫描产物（不入库）
+.mimosa/
