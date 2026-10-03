@@ -1,5 +1,54 @@
 # 变更记录
 
+## 2026-10-03（十六）：模特图契约强化——必须露脸 + 形象上镜（颜值/身材）
+
+用户需求：模特图必须露脸，模特身材与颜值要好看。全部落点在 `ImageQualityContract`（单一事实源，生成/质检/修复/单图四端同步生效）：
+
+- **MD2 露脸强化**：生成端明确"必须面向镜头，完整面部清晰露出，不得背对镜头、低头过深、面部不得被头发/手/商品/道具/阴影遮挡"；质检端对应判据为客观可判——背对/低头过深/面部被遮挡/只露侧脸轮廓均判未通过。
+- **新增 MD7 形象上镜**：生成端注入颜值/身材目标（身材比例匀称自然、体态挺拔、五官端正立体、妆容干净精致、发型整洁、整体颜值高、气质与商品调性相配）+ 四肢手指自然完整禁令；质检端只查**客观畸形**（比例明显失调/肢体扭曲/手指畸形多指缺指/五官畸变），并明确"妆发风格、颜值高低与气质属于主观偏好，不构成未通过理由"——防止视觉模型按主观审美判死导致修复循环不收敛（同"主观构图偏好不作失败项"的既有口径）。
+- **同步落点**：`repairFocus("模特图")` 修复硬约束与 `MODEL_SINGLE_ACCEPTANCE` 单图验收段同步补露脸与形象要求；契约一致性测试断言两端同组条款。
+- **测试**：`ImageQualityContractTest` 新增双端断言，`mvn test` 58/58。
+
+## 2026-10-03（十五）：图生图网关双档切换——默认（比赛）/ 自定义（诊断）UI 可选
+
+gpt-image-2 诊断对比效果显著（用户确认），为兼顾比赛合规与自有测试，把网关选择做成前端双档：
+
+- **前端「模型与调用」面板**：图生图新增「默认（比赛）/ 自定义」分段切换——默认档走 Token Plan 主网关（比赛口径，模型清单为主网关 imageToImage），自定义档走服务端 `.env` 预配置网关（清单为该网关 editToImage，未配置时按钮禁用并提示）；切换时自动校准该档的默认模型（已验证项优先）。档位与模型选择随请求下发。
+- **后端路由**：`ImagePipelineRequest` / `SingleImageRequest` / `LocalizeRequest` 新增 `editGateway` 字段（"custom" 走自定义网关，其余含空一律默认 Token Plan——比赛合规是缺省行为）；`ModelRouterImageClient.editImage` 增加路由参数：默认档固定主网关 chat 格式，自定义档按 `edit-api-style`（chat/openai-images）路由，未配置自定义网关时抛可读异常。五图流水线（含修复轮）、单图工具、图片本地化全链路透传同一档位；白底图文生图重制仍走主网关。
+- **合规性**：URL 与 API Key 只存在服务端 `.env`，前端仅发送模式标志；交付配置清空 `MODEL_ROUTER_EDIT_*` 或 UI 保持默认档即完全符合红线 2/6（CLAUDE.md）。
+- **测试**：新增路由透传用例（默认 false / custom true / 非法值回落 false），既有用例适配 4 参 editImage；`mvn test` 57/57，`tsc -b` + `vite build` 通过。
+
+## 2026-10-03（十四）：harness 约束增强二期——本地预检闸门 + 噪点失败重画路由 + 分级修复预算
+
+gpt-image-2 实测出图质量显著优于 qwen-image-2.0（用户确认），但比赛交付环境必须走 Token Plan + 126 清单（用户决策：守红线双轨），qwen 噪点问题需在 harness 层根治。二期三件事全部落地：
+
+- **`ImagePrecheck`（新类，Java 2D 纯本地预检，零模型成本）**：视觉质检前的快速失败闸门——全图类清晰度（拉普拉斯方差）与全画幅噪点（3x3 中值残差）、场景图背景均匀度（边缘帧亮度标准差，拦"纯色冒充场景"）、模特图人物存在性（中心区肤色占比）。预检不通过直接进修复循环并跳过视觉质检（省 1 次视觉调用/张），修复轮产物先过本地预检、通过才发视觉质检——视觉质检始终针对最终候选图而非废图；预检结果照常写入 qa 记录（model=本地预检）并推 SSE。加载/解码失败降级为跳过预检不阻断；阈值宁松勿紧防误杀，集中在 `application.yml` `quality-policy.precheck`。
+- **噪点失败重画路由**：修复循环的结构性缺陷修正——此前修复以"当前噪点图"为编辑基准，在噪点上修补必然残留。现在噪点类失败（本地预检噪点问题，或视觉质检 issues/修复指令含噪点/颗粒/伪影）且存在干净基准（质检通过的白底图）时，修复参考改为 `[干净白底基准, P3]`，修复提示词头部改为"以干净基准重新绘制本图类、商品以外画面全面重绘"——换干净画布重画而非脏画布补画。构图类问题仍走原"编辑当前图"路径。
+- **分级修复预算**：`quality-policy.repair.min-severity`（默认"高"）门控视觉质检失败的修复触发——仅有低严重度问题时记录建议不消耗修复轮次；无结构化分级（白底兼容路径）维持原有必修行为。`max-attempts`（默认 2）同步入 yml。`MAX_REPAIR_ATTEMPTS` 常量删除。
+- **测试**：新增 `ImagePrecheckTest` 6 例（合成图像验证四检测器：清晰/模糊/噪点/纯色背景/人物存在/解码失败宽容）+ 集成回归 2 例（预检拦截的噪点图跳过视觉质检直到最终候选；低严重度不触发修复）。`mvn test` 56/56。
+- **教训**：`@Value` 基本类型字段必须内联默认值——未注入时 int 默认 0 会让修复循环静默失效（测试曾全部暴露为"修复 0 次"）。
+
+## 2026-10-03（十三）：图生图独立网关覆盖（诊断用，默认关闭）
+
+实测发现场景图全画幅噪点（qwen-image-2.0 已知噪点传导，CHANGES 七），用户需换网关/密钥做模型对比诊断。
+
+- **`ModelRouterImageClient` 双客户端路由**：新增可选配置 `MODEL_ROUTER_EDIT_BASE_URL` / `MODEL_ROUTER_EDIT_API_KEY`（application.yml `edit-base-url`/`edit-api-key`），配置后 `editImage`（图生图，含流水线修复轮与本地化）改走独立网关，`generateImage`/`listModels`/`fetchImage` 仍走主网关；未配置时与主网关共用同一 RestClient，行为不变。
+- **公网地址校验（启动时 fail-fast）**：独立网关地址仅允许 http/https，主机须为可解析公网地址——拒绝 localhost/.local、环回、私有（10/8、172.16/12、192.168/16）、链路本地（含 169.254.169.254）、0.0.0.0、组播与 IPv6 ULA（fc00::/7，标准标记不覆盖已显式补上）、IPv4 映射环回。
+- **红线提示**：比赛交付配置必须留空此覆盖——所有调用须走 Token Plan Model Router（CLAUDE.md 红线 2）；`.env.example` 已注明。
+- **测试**：新增 `ModelRouterEditEndpointTest` 5 例（地址校验 16 组拒绝样例、装配路由、fail-fast、空白回落），`mvn test` 44/44。
+- **模型清单打通（同日补充）**：`/api/models` 新增 `editToImage`/`editGateway`/`editError` 字段——配置覆盖时图生图下拉展示独立网关自己的 `/v1/models` 清单（实测自定义网关返回 gpt-image-2 系列），未配置时回落主网关 `imageToImage`；`listEditModels` 走独立网关客户端，失败单独降级不拖垮主清单。修复：Spring 主构造器此前未注入 `edit-base-url`/`edit-api-key`（`@Value` 缺失导致覆盖静默失效，`editGateway` 改显式布尔字段防引用比对误判）。前端 `RightPanel` 图生图下拉改用 `editToImage`，独立网关模式下标签显示「参考图 / 编辑 · 独立网关」。`mvn test` 46/46。
+
+## 2026-10-03（十二）：harness 约束增强一期——图类质量契约化 + 参考图视觉画像
+
+用户需求：增强 harness 对模型的约束、提高生成图片质量（作者第一痛点：模特图/场景图），方式为"绑定 harness"——把约束从劝告式提示词升级为结构上强制执行的单一事实源。调用预算：全流水线仅 +1 次视觉调用。
+
+- **图类质量契约（单一事实源，新 `ImageQualityContract.java`）**：五类图验收条款结构化为 `Clause(id, generation, qa)`，同时供三个消费端渲染——生成端（`buildPrompt`/`fallbackPrompt`，原 fallbackPrompt 五段长文案拆分为带 id 的逐条契约，重点细化模特图 MD1-MD6 / 场景图 SC1-SC4）、质检端（`imageTypeRule` 改为从契约 `qaBlock` 渲染）、修复端（`repairFocus` 集中原修复 hard 约束）。两端渲染均携带同一 【id】 标记，`ImageQualityContractTest` 断言生成提示词与质检判据包含同一组条款 id——CLAUDE.md"生成端与检测端容差必须匹配"的工程化落点，今后改约束只改契约文件。白底判定容差条款仍留在 `compliancePrompt` 模板内（踩坑警示：两端任一删除都会让修复循环永不收敛），契约 W1 判据与之配合。
+- **参考图视觉画像（+1 次调用，唯一新增）**：`ModelRouterVisionClient.describeReference`——视觉模型对首张参考图输出客观描述 JSON（品类/形状结构/颜色/材质/固有文字/使用方式），提示词强制"只描述可见事实、禁止推测品牌参数认证、看不清如实填未可辨认"；temperature 0 保证可复现。流水线在画像步骤后执行一次（run/runStream 双模式），SSE 推 log 事件与新步骤「参考图视觉画像」；调用或解析失败静默降级为不注入。此前参考图信息全靠图生图模型自己"看"，本体走样与臆造印刷缺少逐字依据。
+- **一份本体事实注入三端**：生成端 `buildPrompt` 商品事实区（"参考图视觉事实…商品外观必须与其一致"）、修复端 `repairPromptFor`（"商品参考事实…描述与参考图冲突时以参考图为准"）、质检端 `complianceCheck` 新增第 8 参 `referenceProfile` 以独立段落注入（不并入 productFacts，保持流水线与前端单图复检的 productFacts 逐字一致这一既有约束）。
+- **文案集中**：单图模特图硬性验收段迁入契约常量 `MODEL_SINGLE_ACCEPTANCE`；`buildPrompt` 模特图追加段删除（内容已被 MD1-MD6 覆盖，消除与 fallbackPrompt 的重复演化）。
+- **文档口径修正**：README / CLAUDE.md / architecture.md 中"最多修复一次/重试一次"与代码 `MAX_REPAIR_ATTEMPTS=2` 不符，统一修正为"最多两轮修复（白底图另有一次文生图重制兜底）"。
+- **测试**：新增 `ImageQualityContractTest`（两端条款 id 一致、未知图类拒绝、修复约束覆盖、参考画像提示词禁推测、JSON 解析宽容性与空字段剔除）；`PipelineRegressionTest` 适配 8 参 complianceCheck，新增参考画像注入生成/修复/质检三端与失败静默降级两个回归用例；`describeReference` 每流水线仅调用一次有断言。
+
 ## 2026-09-08（十一）：五图验收 5/5 一次性通过——白底图/对比图确定性直出 + 详情页全英文化
 
 用户要求：自己跑一遍流水线验收图片是否符合规范；跨境电商详情页必须英文。经三轮真实网关迭代验收，最终 **5/5 全部一次性通过（2 分 12 秒）**，详情页全英文输出（HAS_CHINESE_CONTENT: False）。

@@ -137,7 +137,7 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - `GET /api/health`：健康检查。
 - `GET /api/models`：网关模型清单按能力分组（文生图/图生图/文本/视觉/其他 + `visionAvailable`；供前端「模型与调用」面板）。
 - `GET /api/image-proxy`：同源图片代理（`?url=`，`download=true` 下载），供前端画幅裁切与下载原图；仅 http(s)。
-- `POST /api/images/set`：五图 + 详情页流水线（同步；支持 `referenceImages` 参考图与 `imageModel`/`editModel`/`textModel`/`visionModel` 模型覆盖；详情页为 AI 按平台规范自动编排，失败降级模板；白底图自动视觉质检，失败降级人工复检提醒）。
+- `POST /api/images/set`：五图 + 详情页流水线（请求字段 `editGateway`："custom" 走服务端预配置自定义网关（诊断用），缺省/其余一律默认 Token Plan 主网关（比赛口径）；前端双档切换仅传递路由标志，自定义网关的连接信息不下发、不经前端，配置方法见 `.env.example`）（同步；支持 `referenceImages` 参考图与 `imageModel`/`editModel`/`textModel`/`visionModel` 模型覆盖；详情页为 AI 按平台规范自动编排，失败降级模板；白底图自动视觉质检，失败降级人工复检提醒）。
 - `POST /api/images/set/stream`：同上但为 SSE 流式（事件：log / profile / image_start / image_done / image_fail / qa / done / fatal）。
 - `POST /api/images/single`：单图生成（三分支：文生图 / referenceImages 参考图生成 / sourceUrl 基于已生成图修改），供侧栏工具工作台与槽位「重新生成 / 修改」。
 - `POST /api/images/localize`：图片本地化（同步图生图编辑；支持场景/文字/模特维度、目标语言和模特形象）。
@@ -151,7 +151,8 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
 - **平台策略**：每个目标平台均生成全部五图（10 图 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化风格与合规规则（`platformRule`），多平台出图互不雷同、贴合各平台自身特色。
-- **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。两种模式的白底图未通过且有修复提示词时均重试一次，二次检查沿用当前范围；其他图仅输出建议。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
+- **本地预检闸门（2026-10-03）**：视觉质检前先过 `ImagePrecheck`（Java 2D 纯本地：清晰度/噪点/场景背景均匀度/模特图人物存在性），预检不过直接进修复并跳过视觉质检调用，修复轮产物先过本地预检、通过才发视觉质检（质检始终针对最终候选图）。阈值集中在 `application.yml` `quality-policy`，宁松勿紧防误杀。**噪点类失败重画路由**：存在质检通过的白底图（干净基准）时，修复参考为 `[干净白底基准, P3]` 并全面重绘，不在噪点图上修补；**severity 门控**：`quality-policy.repair.min-severity`（默认高）以下仅记录建议不消耗修复轮次，无结构化分级时维持必修。
+- **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。两种模式的白底图未通过且有修复提示词时最多重试两轮（MAX_REPAIR_ATTEMPTS=2，白底图另有文生图重制兜底一次），二次检查沿用当前范围；其他图仅输出建议。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
 - **白底判定容差（踩坑警示，改检测提示词必须保留）**：AI 生成图的"纯白"实际为 RGB 245–254 带轻微压缩噪点，检测端苛求 RGB 255 会把正常噪点判"高噪点"，修复循环永不收敛；`ModelRouterVisionClient` 检测提示词已注入容差（各通道 ≥245 且均匀干净即合规，轻微噪点/极浅渐变不算违规），生成端 `editFromSourcePrompt` 仍要求完全重绘背景，两端容差必须匹配。
 - **工具工作台后台运行**：前端单图工具工作台实例常驻挂载、切换仅隐藏（`App.tsx` 的 `toolPages`/`toolPage`），生成中切走不打断任务；单图工具生成五类图后自动调 `/api/compliance-check` 复检（带锚点参考图做 P3 本体检验）并支持一键按修复指令再生成；生成工作台槽位「重新生成/修改」成功后同样自动复检。不得改回 `tab === 'tool'` 条件挂载（会中断运行中的任务）。
 - **角色分工**：画像 Agent → 提示词 Agent → 生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent；五个职责角色由 Spring Boot 编排，提示词角色使用模板与画像，不额外调用 LLM，质检/合规在 all 模式共用一次视觉调用。
