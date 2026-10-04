@@ -1,4 +1,5 @@
 import type {
+  ComplianceRulesSnapshot,
   DetailPage,
   DetailPageRequest,
   GeneratedImage,
@@ -6,6 +7,7 @@ import type {
   LocalizeRequest,
   ComplianceResult,
   ModelCatalog,
+  PolishKind,
   SingleImageRequest,
 } from '../types';
 
@@ -128,4 +130,18 @@ export async function generateDetailPages(req: DetailPageRequest): Promise<Detai
     body: JSON.stringify(req),
   });
   return payload.detailPages;
+}
+
+/** GET /api/compliance-rules — 平台与市场合规规则（结构化，市场规范页浏览） */
+export async function fetchComplianceRules(): Promise<ComplianceRulesSnapshot> {
+  return apiJson<ComplianceRulesSnapshot>('/api/compliance-rules', { method: 'GET' });
+}
+
+/** POST /api/polish — AI 润色（商品卖点 / 商品名词+关键词），model 可选覆盖文本模型 */
+export async function polishText(req: { text: string; kind: PolishKind; model?: string }): Promise<{ text: string }> {
+  return apiJson<{ text: string }>('/api/polish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
 }

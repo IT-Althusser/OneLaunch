@@ -1,7 +1,10 @@
 /** Types shared between frontend and backend (corresponds to apps/server/src/main/java/com/onelaunch/ApiModels.java) */
 
-/** 工作台页签：创作 / 生成 / 单图工具工作台（侧边栏目录面板的跳转目标） */
-export type WorkbenchTab = 'create' | 'studio' | 'tool';
+/** 应用两相状态：落地页（起飞动画）/ 应用外壳 */
+export type AppPhase = 'landing' | 'app';
+
+/** 工作台页签：创作 / 生成 / 单图工具工作台 / 工作台 hub / 市场规范 */
+export type WorkbenchTab = 'create' | 'studio' | 'tool' | 'workbench' | 'market';
 
 /** Five types of images (fixed capability scope of this solution) */
 export const IMAGE_TYPES = [
@@ -209,3 +212,18 @@ export interface ThinkingLogLine {
   text: string;
   time: string;
 }
+
+/** GET /api/compliance-rules 单条规则：id（可空）+ hard（硬性=生成与质检两端；风格=仅生成端） */
+export interface ComplianceRuleEntry { id: string | null; hard: boolean; text: string }
+
+/** 规则文档的分节（通用 / 白底图 / 场景图 …） */
+export interface ComplianceRuleSection { name: string; rules: ComplianceRuleEntry[] }
+
+/** 一份平台或市场规则文档 */
+export interface ComplianceRuleDoc { key: string; label: string; sections: ComplianceRuleSection[] }
+
+/** GET /api/compliance-rules 返回：平台与市场两组规则文档 */
+export interface ComplianceRulesSnapshot { platforms: ComplianceRuleDoc[]; markets: ComplianceRuleDoc[] }
+
+/** POST /api/polish 润色对象：商品卖点 / 商品名词+关键词 */
+export type PolishKind = 'selling-points' | 'keywords';

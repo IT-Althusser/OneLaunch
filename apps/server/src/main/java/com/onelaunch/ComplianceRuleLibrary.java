@@ -73,6 +73,41 @@ public class ComplianceRuleLibrary {
                 + " + 市场广告法 " + source(marketFiles, "market", marketKey(market));
     }
 
+    private static final List<String> PLATFORM_ORDER = List.of("amazon", "tiktok-shop", "temu", "shopee");
+    private static final Map<String, String> PLATFORM_LABELS = Map.of("amazon", "Amazon", "tiktok-shop", "TikTok Shop", "temu", "Temu", "shopee", "Shopee");
+    private static final List<String> MARKET_ORDER = List.of("us", "uk", "eu", "japan", "sea");
+    private static final Map<String, String> MARKET_LABELS = Map.of("us", "US", "uk", "UK", "eu", "欧盟", "japan", "日本", "sea", "东南亚");
+
+    /** 结构化规则快照（市场规范页浏览）：与生成端、质检端读同一规则库，硬性/风格标记原样透出。 */
+    public Map<String, Object> snapshot() {
+        return Map.of(
+                "platforms", docs(platformFiles, platforms, PLATFORM_ORDER, PLATFORM_LABELS),
+                "markets", docs(marketFiles, markets, MARKET_ORDER, MARKET_LABELS));
+    }
+
+    private List<Map<String, Object>> docs(Map<String, String> files, Map<String, Map<String, List<Rule>>> rules, List<String> order, Map<String, String> labels) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String key : order) {
+            if (!files.containsKey(key)) continue;
+            List<Map<String, Object>> sectionList = new ArrayList<>();
+            Map<String, List<Rule>> sections = rules.get(key);
+            if (sections != null) {
+                for (Map.Entry<String, List<Rule>> entry : sections.entrySet()) {
+                    List<Map<String, Object>> items = new ArrayList<>();
+                    for (Rule rule : entry.getValue()) {
+                        items.add(Map.of(
+                                "id", rule.id() == null ? "" : rule.id(),
+                                "hard", rule.hard(),
+                                "text", rule.text()));
+                    }
+                    sectionList.add(Map.of("name", entry.getKey(), "rules", items));
+                }
+            }
+            result.add(Map.of("key", key, "label", labels.getOrDefault(key, key), "sections", sectionList));
+        }
+        return result;
+    }
+
     /** 平台规则文件是否已入库（供诊断与测试）。 */
     public boolean hasPlatform(String platform) { return platformFiles.containsKey(slug(platform)); }
 

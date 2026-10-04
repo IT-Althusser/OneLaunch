@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { regenerateSingle, localizeImage, complianceCheck, imageProxyUrl } from '../api/client';
-import { ReferenceUploader } from './ReferenceUploader';
-import { ImageLightbox } from './ImageLightbox';
+import { ReferenceUploader } from './common/ReferenceUploader';
+import { ImageLightbox } from './common/ImageLightbox';
 import { PLATFORMS, IMAGE_TYPES, type ImageType, type ComplianceResult, type GeneratedImage, type ModelSelection, type ReferenceImage, type SideToolType } from '../types';
-import { ComplianceIssues } from './ComplianceIssues';
+import { ComplianceIssues } from './common/ComplianceIssues';
 
 /** 画幅选择项 */
 const ASPECTS = [
@@ -322,8 +322,8 @@ export function ToolWorkbench({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="eyebrow mb-1.5">Tool workbench · {platform}</div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.04em] text-[#17202b]">{type} · 单图工作台</h1>
-          <p className="mt-1 text-sm text-[#8d867c]">
+          <h1 className="text-[26px] font-semibold tracking-[-0.04em] text-[#0d0d0d]">{type} · 单图工作台</h1>
+          <p className="mt-1 text-sm text-[#8e8e9a]">
             {isCompliance
               ? '上传商品图或粘贴图片链接，检查平台规范与目标市场广告法风险。'
               : isLocalize
@@ -333,18 +333,18 @@ export function ToolWorkbench({
                 : '独立生成一张该类型图片：参考图、文字描述与投放画幅。'}
           </p>
         </div>
-        <button type="button" onClick={onBack} className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2.5 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">← {backLabel}</button>
+        <button type="button" onClick={onBack} className="rounded-xl border border-[#dcdce3] bg-[#ffffff] px-4 py-2.5 text-xs font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink">← {backLabel}</button>
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* 01 · 参考素材 / 本地化源图 */}
-        <section className="panel px-5 py-5">
+        <section className="cardpx-5 py-5">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">01</span>{isCompliance ? '检测对象' : isLocalize ? '本地化源图' : mode === 'edit' ? '源图' : '参考素材'}</h2>
-            <span className="text-[10px] font-bold tracking-[0.14em] text-[#a49d92]">{isCompliance || isLocalize ? '必选 · 取第一张' : mode === 'edit' && refs.length > 0 ? '默认当前图 · 可更换' : refs.length > 0 ? `已添加 ${refs.length}` : '可选'}</span>
+            <h2 className="text-sm font-semibold text-[#0d0d0d]"><span className="mr-1.5 text-[#0d0d0d]">01</span>{isCompliance ? '检测对象' : isLocalize ? '本地化源图' : mode === 'edit' ? '源图' : '参考素材'}</h2>
+            <span className="text-[10px] font-bold tracking-[0.14em] text-[#b4b4bf]">{isCompliance || isLocalize ? '必选 · 取第一张' : mode === 'edit' && refs.length > 0 ? '默认当前图 · 可更换' : refs.length > 0 ? `已添加 ${refs.length}` : '可选'}</span>
           </header>
           {(isLocalize || isCompliance) && refs.length > 0 && (
-            <p className="mb-2 break-words rounded-lg bg-[#fdf8ef] px-3 py-2 text-[11px] leading-relaxed text-[#9a8a68]">当前源图：{refs[0].name}</p>
+            <p className="mb-2 break-words rounded-lg bg-[#fffbeb] px-3 py-2 text-[11px] leading-relaxed text-[#b45309]">当前源图：{refs[0].name}</p>
           )}
           <ReferenceUploader
             images={refs}
@@ -356,27 +356,27 @@ export function ToolWorkbench({
         </section>
 
         {/* 02 · 文字描述 */}
-        <section className="panel px-6 py-5">
+        <section className="cardpx-6 py-5">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">02</span>{isCompliance ? '检测范围' : isLocalize ? '本地化维度' : '文字描述'}</h2>
+            <h2 className="text-sm font-semibold text-[#0d0d0d]"><span className="mr-1.5 text-[#0d0d0d]">02</span>{isCompliance ? '检测范围' : isLocalize ? '本地化维度' : '文字描述'}</h2>
           </header>
           {imageMode && (
             <div className="mb-3 grid max-w-[520px] grid-cols-2 gap-2">
               {([['regen', '以文字描述生成'], ['edit', '基于当前图修改']] as const).map(([id, label]) => (
                 <button key={id} type="button" onClick={() => switchMode(id)} aria-pressed={mode === id}
-                  className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${mode === id ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#b84934]' : 'border-[#e2ddd5] bg-[#fffdf9] text-[#6f685e] hover:border-[#bbb2a6]'}`}>
+                  className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${mode === id ? 'border-ink bg-mist text-ink' : 'border-[#e9e9ee] bg-[#ffffff] text-[#5d5d6b] hover:border-[#b4b4bf]'}`}>
                   {label}
                 </button>
               ))}
             </div>
           )}
           {isCompliance && <div className="mb-3 grid gap-3 sm:grid-cols-2">
-            <label className="text-xs text-[#514b43]">平台<select disabled={busy} className="field mt-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></label>
-            <label className="text-xs text-[#514b43]">目标市场<select disabled={busy} className="field mt-1" value={complianceMarket} onChange={(e) => setComplianceMarket(e.target.value)}><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select></label>
-            <label className="text-xs text-[#514b43]">图类<select disabled={busy} className="field mt-1" value={complianceType} onChange={(e) => setComplianceType(e.target.value as ImageType)}>{IMAGE_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+            <label className="text-xs text-[#5d5d6b]">平台<select disabled={busy} className="field mt-1" value={platform} onChange={(e) => setPlatform(e.target.value)}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label className="text-xs text-[#5d5d6b]">目标市场<select disabled={busy} className="field mt-1" value={complianceMarket} onChange={(e) => setComplianceMarket(e.target.value)}><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select></label>
+            <label className="text-xs text-[#5d5d6b]">图类<select disabled={busy} className="field mt-1" value={complianceType} onChange={(e) => setComplianceType(e.target.value as ImageType)}>{IMAGE_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
           </div>}
-          {isLocalize && <div className="mb-3 flex flex-wrap gap-2">{[['scene','背景场景'],['text','文字语言'],['model','模特形象']].map(([id,label]) => <button key={id} type="button" disabled={busy} aria-pressed={aspects.includes(id)} onClick={() => setAspects((p) => p.includes(id) ? p.length > 1 ? p.filter((x) => x !== id) : p : [...p,id])} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${aspects.includes(id) ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e]'}`}>{label}</button>)}</div>}
-          {!isCompliance && <label htmlFor={promptId} className="mb-2 block text-xs text-[#514b43]">{isLocalize ? '附加要求（可选）' : '画面要求'}</label>}
+          {isLocalize && <div className="mb-3 flex flex-wrap gap-2">{[['scene','背景场景'],['text','文字语言'],['model','模特形象']].map(([id,label]) => <button key={id} type="button" disabled={busy} aria-pressed={aspects.includes(id)} onClick={() => setAspects((p) => p.includes(id) ? p.length > 1 ? p.filter((x) => x !== id) : p : [...p,id])} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${aspects.includes(id) ? 'border-ink bg-mist text-ink' : 'border-[#dcdce3] bg-[#ffffff] text-[#5d5d6b]'}`}>{label}</button>)}</div>}
+          {!isCompliance && <label htmlFor={promptId} className="mb-2 block text-xs text-[#5d5d6b]">{isLocalize ? '附加要求（可选）' : '画面要求'}</label>}
           {!isCompliance && <textarea
             id={promptId}
             ref={promptRef}
@@ -391,12 +391,12 @@ export function ToolWorkbench({
             <div className="mt-3 space-y-2">
               {(TOOL_OPTION_GROUPS[type] ?? []).map((group) => (
                 <div key={group.label} className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-12 shrink-0 text-[10px] font-bold tracking-[0.08em] text-[#a49d92]">{group.label}</span>
+                  <span className="w-12 shrink-0 text-[10px] font-bold tracking-[0.08em] text-[#b4b4bf]">{group.label}</span>
                   {group.options.map((opt) => {
                     const on = prompt.includes(opt);
                     return (
                       <button key={opt} type="button" onClick={() => toggleOption(opt)} aria-pressed={on} disabled={busy}
-                        className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${on ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e] hover:border-[#bbb2a6]'}`}>
+                        className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${on ? 'border-ink bg-mist text-ink' : 'border-[#dcdce3] bg-[#ffffff] text-[#5d5d6b] hover:border-[#b4b4bf]'}`}>
                         {opt}
                       </button>
                     );
@@ -408,17 +408,17 @@ export function ToolWorkbench({
           {/* 本地化：目标市场 */}
           {isLocalize && (
             <>
-            {aspects.includes('text') && <label className="mt-3 block text-xs text-[#514b43]">目标语言<select disabled={busy} className="field mt-1" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}><option>英语</option><option>日语</option><option>德语</option><option>法语</option><option>西班牙语</option><option>泰语</option><option>印尼语</option></select></label>}
-            {aspects.includes('model') && <label className="mt-3 block text-xs text-[#514b43]">模特形象<select disabled={busy} className="field mt-1" value={modelProfile} onChange={(e) => setModelProfile(e.target.value)}><option>欧美面孔模特</option><option>日韩面孔模特</option><option>东南亚面孔模特</option><option>移除模特仅保留商品</option></select></label>}
-            {aspects.includes('text') && <p className="mt-3 rounded-lg bg-[#fdf8ef] px-3 py-2 text-xs text-[#9a6b2f]">AI 生成文字可能有小误差，请人工复核</p>}
+            {aspects.includes('text') && <label className="mt-3 block text-xs text-[#5d5d6b]">目标语言<select disabled={busy} className="field mt-1" value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)}><option>英语</option><option>日语</option><option>德语</option><option>法语</option><option>西班牙语</option><option>泰语</option><option>印尼语</option></select></label>}
+            {aspects.includes('model') && <label className="mt-3 block text-xs text-[#5d5d6b]">模特形象<select disabled={busy} className="field mt-1" value={modelProfile} onChange={(e) => setModelProfile(e.target.value)}><option>欧美面孔模特</option><option>日韩面孔模特</option><option>东南亚面孔模特</option><option>移除模特仅保留商品</option></select></label>}
+            {aspects.includes('text') && <p className="mt-3 rounded-lg bg-[#fffbeb] px-3 py-2 text-xs text-[#b45309]">AI 生成文字可能有小误差，请人工复核</p>}
             </>
           )}
           {isLocalize && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="w-12 shrink-0 text-[10px] font-bold tracking-[0.08em] text-[#a49d92]">市场</span>
+              <span className="w-12 shrink-0 text-[10px] font-bold tracking-[0.08em] text-[#b4b4bf]">市场</span>
               {MARKETS.map((m) => (
                 <button key={m} type="button" onClick={() => { setMarket(m); setTargetLanguage(m === '日本' ? '日语' : '英语'); }} aria-pressed={market === m} disabled={busy}
-                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${market === m ? 'border-[#ef6a4c] bg-[#fff1ed] text-[#c84f36]' : 'border-[#d9d3c9] bg-[#fffdf9] text-[#6f685e] hover:border-[#bbb2a6]'}`}>
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${market === m ? 'border-ink bg-mist text-ink' : 'border-[#dcdce3] bg-[#ffffff] text-[#5d5d6b] hover:border-[#b4b4bf]'}`}>
                   {m}
                 </button>
               ))}
@@ -426,84 +426,84 @@ export function ToolWorkbench({
           )}
           {/* 工具专属提示 */}
           {type === '白底图' && PLATFORM_MAIN_IMAGE_RULES[platform] && (
-            <p className="mt-3 rounded-lg bg-[#eef4f0] px-3 py-2 text-[11px] leading-relaxed text-[#3d6b52]">{PLATFORM_MAIN_IMAGE_RULES[platform]}</p>
+            <p className="mt-3 rounded-lg bg-[#ecfdf5] px-3 py-2 text-[11px] leading-relaxed text-[#047857]">{PLATFORM_MAIN_IMAGE_RULES[platform]}</p>
           )}
           {TEXT_WARNING[type] && (
-            <p className="mt-3 rounded-lg bg-[#fdf8ef] px-3 py-2 text-[11px] leading-relaxed text-[#9a8a68]">{TEXT_WARNING[type]}</p>
+            <p className="mt-3 rounded-lg bg-[#fffbeb] px-3 py-2 text-[11px] leading-relaxed text-[#b45309]">{TEXT_WARNING[type]}</p>
           )}
         </section>
 
         {/* 03 · 输出规格（通栏：画幅 + 调用模型） */}
-        {!isCompliance && <section className="panel px-6 py-5 lg:col-span-2">
+        {!isCompliance && <section className="cardpx-6 py-5 lg:col-span-2">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]"><span className="mr-1.5 text-[#ef6a4c]">03</span>输出规格</h2>
-            <span className="text-[10px] text-[#a49d92]">选择最终投放画幅</span>
+            <h2 className="text-sm font-semibold text-[#0d0d0d]"><span className="mr-1.5 text-[#0d0d0d]">03</span>输出规格</h2>
+            <span className="text-[10px] text-[#b4b4bf]">选择最终投放画幅</span>
           </header>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
             <div className="grid grid-cols-3 gap-2">
               {ASPECTS.map((a) => (
                 <button key={a.id} type="button" onClick={() => setAspect(a.id)} aria-pressed={aspect === a.id}
-                  className={`rounded-xl border px-3.5 py-3 text-left transition ${aspect === a.id ? 'border-[#ef6a4c] bg-[#fff1ed]' : 'border-[#e2ddd5] bg-[#fffdf9] hover:border-[#bbb2a6]'}`}>
-                  <span className={`flex items-center justify-between text-sm font-bold ${aspect === a.id ? 'text-[#c84f36]' : 'text-[#39342e]'}`}>{a.id}{aspect === a.id && <span className="text-xs">✓</span>}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold text-[#514b43]">{a.label}</span>
-                  <span className="mt-0.5 block text-[10px] leading-snug text-[#9a9389]">{a.hint}</span>
+                  className={`rounded-xl border px-3.5 py-3 text-left transition ${aspect === a.id ? 'border-ink bg-mist' : 'border-line bg-white hover:border-ink-faint'}`}>
+                  <span className={`flex items-center justify-between text-sm font-bold ${aspect === a.id ? 'text-ink' : 'text-ink-soft'}`}>{a.id}{aspect === a.id && <span className="text-xs">✓</span>}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold text-[#5d5d6b]">{a.label}</span>
+                  <span className="mt-0.5 block text-[10px] leading-snug text-[#b4b4bf]">{a.hint}</span>
                 </button>
               ))}
             </div>
-            <div className="rounded-xl bg-[#f4f1eb] px-4 py-3.5">
-              <div className="text-[10px] font-bold tracking-[0.12em] text-[#a49d92]">本次调用模型</div>
-              <div className="mt-1 text-xs font-semibold text-[#39342e]">{activeModel}</div>
-              <div className="mt-1 text-[10px] leading-relaxed text-[#8d867c]">{useEditModel ? '图生图（参考图 / 当前图修改 / 本地化）' : '文生图'} · 网关固定输出方图，画幅为居中裁切输出规格。</div>
+            <div className="rounded-xl bg-[#f7f7f8] px-4 py-3.5">
+              <div className="text-[10px] font-bold tracking-[0.12em] text-[#b4b4bf]">本次调用模型</div>
+              <div className="mt-1 text-xs font-semibold text-[#5d5d6b]">{activeModel}</div>
+              <div className="mt-1 text-[10px] leading-relaxed text-[#8e8e9a]">{useEditModel ? '图生图（参考图 / 当前图修改 / 本地化）' : '文生图'} · 网关固定输出方图，画幅为居中裁切输出规格。</div>
             </div>
           </div>
         </section>}
       </div>
 
       {/* 结果对比 */}
-      {busy && <section className="panel slot-shimmer mt-5 px-6 py-5" role="status"><p className="text-sm text-[#514b43]">{isCompliance ? '合规 Agent：正在核查平台与市场规则…' : '生成工具：正在处理图片…'}</p><div className="mt-3 h-20 rounded-xl bg-[#eee9e1]" /></section>}
-      {isCompliance && !busy && !complianceResult && <section className="panel mt-5 px-6 py-5"><h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#ef6a4c]">03</span>检测结果</h2><p className="mt-2 text-xs text-[#6f685e]">{error ? '检测未完成，请检查错误信息后重试。' : '等待检测'}</p></section>}
+      {busy && <section className="cardslot-shimmer mt-5 px-6 py-5" role="status"><p className="text-sm text-[#5d5d6b]">{isCompliance ? '合规 Agent：正在核查平台与市场规则…' : '生成工具：正在处理图片…'}</p><div className="mt-3 h-20 rounded-xl bg-[#f0f0f3]" /></section>}
+      {isCompliance && !busy && !complianceResult && <section className="cardmt-5 px-6 py-5"><h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#0d0d0d]">03</span>检测结果</h2><p className="mt-2 text-xs text-[#5d5d6b]">{error ? '检测未完成，请检查错误信息后重试。' : '等待检测'}</p></section>}
       {isCompliance && complianceResult && (
-        <section className="panel mt-5 px-6 py-5">
+        <section className="cardmt-5 px-6 py-5">
           <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#ef6a4c]">03</span>检测结果</h2>
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${complianceResult.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}><span className={`h-2 w-2 rounded-full ${complianceResult.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />{complianceResult.passed ? '通过' : '未通过'}</span>
+            <h2 className="text-sm font-semibold"><span className="mr-1.5 text-[#0d0d0d]">03</span>检测结果</h2>
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${complianceResult.passed ? 'bg-[#ecfdf5] text-[#059669]' : 'bg-[#fef2f2] text-[#dc2626]'}`}><span className={`h-2 w-2 rounded-full ${complianceResult.passed ? 'bg-[#10b981]' : 'bg-[#dc2626]'}`} />{complianceResult.passed ? '通过' : '未通过'}</span>
           </header>
-          <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.summary}</p>
+          <p className="break-words text-xs leading-relaxed text-[#5d5d6b]">{complianceResult.summary}</p>
           {complianceResult.passed && complianceResult.passReasons && complianceResult.passReasons.length > 0 && (
-            <div className="mt-3 rounded-xl bg-[#e9f7ee] px-4 py-3">
-              <p className="text-[10px] font-bold tracking-[0.12em] text-[#1d7a44]">通过依据</p>
-              <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#2e6845]">
+            <div className="mt-3 rounded-xl bg-[#ecfdf5] px-4 py-3">
+              <p className="text-[10px] font-bold tracking-[0.12em] text-[#059669]">通过依据</p>
+              <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#047857]">
                 {complianceResult.passReasons.map((reason, index) => <li key={index}>· {reason}</li>)}
               </ul>
             </div>
           )}
           <ComplianceIssues issues={complianceResult.complianceIssues ?? []} />
-          {complianceResult.suggestedPrompt && <div className="mt-3 border-t border-[#e2ddd5] pt-3">
-            <p className="break-words text-xs leading-relaxed text-[#514b43]">{complianceResult.suggestedPrompt}</p>
+          {complianceResult.suggestedPrompt && <div className="mt-3 border-t border-[#e9e9ee] pt-3">
+            <p className="break-words text-xs leading-relaxed text-[#5d5d6b]">{complianceResult.suggestedPrompt}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(complianceResult.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复指令复制'); } }} className="rounded-xl border border-[#d9d3c9] px-3 py-2 text-xs">{copied ? '已复制' : '复制修复指令'}</button>
-              <button type="button" onClick={() => onRepair(complianceType, platform, refs[0].src, complianceResult.suggestedPrompt ?? '')} className="rounded-xl bg-[#ef6a4c] px-3 py-2 text-xs font-semibold text-white hover:bg-[#d95d41]">用此指令修复</button>
+              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(complianceResult.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复指令复制'); } }} className="rounded-xl border border-[#dcdce3] px-3 py-2 text-xs">{copied ? '已复制' : '复制修复指令'}</button>
+              <button type="button" onClick={() => onRepair(complianceType, platform, refs[0].src, complianceResult.suggestedPrompt ?? '')} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-ink-soft">用此指令修复</button>
             </div>
           </div>}
         </section>
       )}
       {result && (
-        <section className="panel mt-5 px-6 py-5">
+        <section className="cardmt-5 px-6 py-5">
           <header className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-[#17202b]">生成结果</h2>
-            <span className="text-[10px] text-[#a49d92]">{result.image.size} · {result.image.type}</span>
+            <h2 className="text-sm font-semibold text-[#0d0d0d]">生成结果</h2>
+            <span className="text-[10px] text-[#b4b4bf]">{result.image.size} · {result.image.type}</span>
           </header>
-          {result.appliedAspects && <div className="mb-3 flex flex-wrap gap-2">{result.appliedAspects.map((a) => <span key={a} className="rounded-full bg-[#fff1ed] px-3 py-1 text-xs text-[#c84f36]">{a === 'scene' ? '背景场景' : a === 'text' ? '文字语言' : '模特形象'}</span>)}</div>}
-          {result.note && <p className="mb-3 rounded-lg bg-[#fdf8ef] px-3 py-2 text-xs text-[#9a6b2f]">{result.note}</p>}
-          {result.prompt && <details className="mb-3 text-xs text-[#514b43]"><summary className="cursor-pointer">本次本地化提示词</summary><p className="mt-2 break-words">{result.prompt}</p></details>}
+          {result.appliedAspects && <div className="mb-3 flex flex-wrap gap-2">{result.appliedAspects.map((a) => <span key={a} className="rounded-full bg-mist px-3 py-1 text-xs text-ink-mid">{a === 'scene' ? '背景场景' : a === 'text' ? '文字语言' : '模特形象'}</span>)}</div>}
+          {result.note && <p className="mb-3 rounded-lg bg-[#fffbeb] px-3 py-2 text-xs text-[#b45309]">{result.note}</p>}
+          {result.prompt && <details className="mb-3 text-xs text-[#5d5d6b]"><summary className="cursor-pointer">本次本地化提示词</summary><p className="mt-2 break-words">{result.prompt}</p></details>}
           <div className="flex flex-wrap items-start gap-4">
             {hasCurrent && (
               <div>
-                <p className="mb-1.5 text-[10px] font-bold tracking-[0.12em] text-[#a49d92]">当前图</p>
+                <p className="mb-1.5 text-[10px] font-bold tracking-[0.12em] text-[#b4b4bf]">当前图</p>
                 <img
                   src={current!.url}
                   alt="当前图"
-                  className="h-44 w-44 cursor-zoom-in rounded-xl border border-[#e2ddd5] object-cover"
+                  className="h-44 w-44 cursor-zoom-in rounded-xl border border-[#e9e9ee] object-cover"
                   title="双击放大预览"
                   role="button"
                   tabIndex={0}
@@ -513,8 +513,8 @@ export function ToolWorkbench({
               </div>
             )}
             <div>
-              <p className="mb-1.5 text-[10px] font-bold tracking-[0.12em] text-[#c84f36]">新图 · {aspect}</p>
-              <div className="overflow-hidden rounded-xl border border-[#ef6a4c]" style={{ width: 176, aspectRatio: String(aspectDef.ratio) }}>
+              <p className="mb-1.5 text-[10px] font-bold tracking-[0.12em] text-ink">新图 · {aspect}</p>
+              <div className="overflow-hidden rounded-xl border border-ink" style={{ width: 176, aspectRatio: String(aspectDef.ratio) }}>
                 <img
                   src={result.image.url}
                   alt="新图"
@@ -530,13 +530,13 @@ export function ToolWorkbench({
             <div className="flex flex-col gap-2 self-stretch justify-center">
               {onApplied && (
                 <button type="button" onClick={() => { onApplied(result.image, prompt.trim()); setResult((prev) => prev ? { ...prev, applied: true } : prev); }}
-                  className="rounded-xl bg-[#ef6a4c] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#d95d41]">
+                  className="rounded-xl bg-ink px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-ink-soft">
                   {result.applied ? '已应用 ✓' : `应用回${platform}槽位`}
                 </button>
               )}
-              <a href={imageProxyUrl(result.image.url, true)} download="product-image.png" className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-5 py-2.5 text-center text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">下载原图</a>
+              <a href={imageProxyUrl(result.image.url, true)} download="product-image.png" className="rounded-xl border border-[#dcdce3] bg-[#ffffff] px-5 py-2.5 text-center text-xs font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink">下载原图</a>
               {aspect !== '1:1' && (
-                <button type="button" onClick={downloadCropped} className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-5 py-2.5 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">
+                <button type="button" onClick={downloadCropped} className="rounded-xl border border-[#dcdce3] bg-[#ffffff] px-5 py-2.5 text-xs font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink">
                   下载{aspect}裁切图
                 </button>
               )}
@@ -544,61 +544,61 @@ export function ToolWorkbench({
           </div>
           {/* 生成即复检（五类图）：新图 URL 直传合规检测，无需下载重传；未通过可一键修复闭环 */}
           {imageMode && (
-            <div className="mt-4 border-t border-[#e2ddd5] pt-4">
+            <div className="mt-4 border-t border-[#e9e9ee] pt-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">合规复检 · {platform} · {marketForPlatform(platform, platformMarkets)} 市场</span>
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#8e8e9a]">合规复检 · {platform} · {marketForPlatform(platform, platformMarkets)} 市场</span>
                 {!complianceChecking && (
                   <button type="button" onClick={() => result && checkCompliance(result.image.url)} disabled={busy}
-                    className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">
+                    className="rounded-md border border-[#dcdce3] bg-[#ffffff] px-2 py-0.5 text-[10px] font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink disabled:opacity-50">
                     重新检测
                   </button>
                 )}
               </div>
-              {complianceChecking && <p className="text-xs text-[#6f685e]" role="status">合规 Agent：正在按 {platform} 平台规则检测新图…</p>}
+              {complianceChecking && <p className="text-xs text-[#5d5d6b]" role="status">合规 Agent：正在按 {platform} 平台规则检测新图…</p>}
               {!complianceChecking && complianceCheckError && (
-                <p className="text-xs leading-relaxed text-[#a44836]">自动复检失败：{complianceCheckError}。可点击「重新检测」重试，或到「合规检测」工作台人工复检。</p>
+                <p className="text-xs leading-relaxed text-[#dc2626]">自动复检失败：{complianceCheckError}。可点击「重新检测」重试，或到「合规检测」工作台人工复检。</p>
               )}
               {!complianceChecking && !resultCompliance && !complianceCheckError && (
                 <button type="button" onClick={() => result && checkCompliance(result.image.url, lastAnchorRef.current)} disabled={busy}
-                  className="rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-4 py-2 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">
+                  className="rounded-xl border border-[#dcdce3] bg-[#ffffff] px-4 py-2 text-xs font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink disabled:opacity-50">
                   检测此图合规性
                 </button>
               )}
               {!complianceChecking && resultCompliance && (
                 <>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${resultCompliance.passed ? 'bg-[#e9f7ee] text-[#1d7a44]' : 'bg-[#fdeceb] text-[#a44836]'}`}>
-                      <span className={`h-2 w-2 rounded-full ${resultCompliance.passed ? 'bg-[#2ea35f]' : 'bg-[#d9534f]'}`} />
+                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${resultCompliance.passed ? 'bg-[#ecfdf5] text-[#059669]' : 'bg-[#fef2f2] text-[#dc2626]'}`}>
+                      <span className={`h-2 w-2 rounded-full ${resultCompliance.passed ? 'bg-[#10b981]' : 'bg-[#dc2626]'}`} />
                       {resultCompliance.passed ? '通过' : '未通过'}
                     </span>
-                    {resultCompliance.model && <span className="rounded-full bg-[#eee9e1] px-2 py-0.5 text-[9px] font-bold text-[#6f685e]">{resultCompliance.model}</span>}
+                    {resultCompliance.model && <span className="rounded-full bg-[#f0f0f3] px-2 py-0.5 text-[9px] font-bold text-[#5d5d6b]">{resultCompliance.model}</span>}
                   </div>
-                  <p className="mt-2 break-words text-xs leading-relaxed text-[#514b43]">{resultCompliance.summary}</p>
+                  <p className="mt-2 break-words text-xs leading-relaxed text-[#5d5d6b]">{resultCompliance.summary}</p>
                   {resultCompliance.passed && resultCompliance.passReasons && resultCompliance.passReasons.length > 0 && (
-                    <div className="mt-2 rounded-xl bg-[#e9f7ee] px-4 py-3">
-                      <p className="text-[10px] font-bold tracking-[0.12em] text-[#1d7a44]">通过依据</p>
-                      <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#2e6845]">
+                    <div className="mt-2 rounded-xl bg-[#ecfdf5] px-4 py-3">
+                      <p className="text-[10px] font-bold tracking-[0.12em] text-[#059669]">通过依据</p>
+                      <ul className="mt-1 space-y-0.5 text-xs leading-relaxed text-[#047857]">
                         {resultCompliance.passReasons.map((reason, index) => <li key={index}>· {reason}</li>)}
                       </ul>
                     </div>
                   )}
                   <ComplianceIssues issues={resultCompliance.complianceIssues ?? []} />
                   {!resultCompliance.passed && resultCompliance.suggestedPrompt && (
-                    <div className="mt-3 rounded-lg bg-[#f4f1eb] p-2.5">
+                    <div className="mt-3 rounded-lg bg-[#f7f7f8] p-2.5">
                       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">修复指令 · 可直接执行</span>
+                        <span className="text-[10px] font-bold tracking-[0.12em] text-[#8e8e9a]">修复指令 · 可直接执行</span>
                         <span className="flex shrink-0 gap-1.5">
                           <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(resultCompliance.suggestedPrompt ?? ''); setCopied(true); } catch { setError('复制失败，请手动选中修复指令复制'); } }}
-                            className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36]">
+                            className="rounded-md border border-[#dcdce3] bg-[#ffffff] px-2 py-0.5 text-[10px] font-semibold text-[#5d5d6b] transition hover:border-ink hover:text-ink">
                             {copied ? '已复制 ✓' : '复制修复指令'}
                           </button>
                           <button type="button" onClick={repairWithSuggestion} disabled={busy}
-                            className="rounded-md bg-[#ef6a4c] px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-[#d95d41] disabled:opacity-50">
+                            className="rounded-md bg-ink px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-ink-soft disabled:opacity-50">
                             {busy ? '修复中…' : '一键修复此图'}
                           </button>
                         </span>
                       </div>
-                      <p className="break-all font-mono text-[10px] leading-relaxed text-[#514b43]">{resultCompliance.suggestedPrompt}</p>
+                      <p className="break-all font-mono text-[10px] leading-relaxed text-[#5d5d6b]">{resultCompliance.suggestedPrompt}</p>
                     </div>
                   )}
                 </>
@@ -607,11 +607,11 @@ export function ToolWorkbench({
           )}
         </section>
       )}
-      {error && <div role="alert" className="mt-5 break-words rounded-xl border border-[#f0b7a8] bg-[#fff1ed] px-4 py-3 text-xs text-[#a44836]">{error}</div>}
+      {error && <div role="alert" className="mt-5 break-words rounded-xl border border-bad/30 bg-bad/5 px-4 py-3 text-xs text-bad">{error}</div>}
 
       {/* 底部操作条 */}
-      <div className="panel sticky bottom-4 mt-5 flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="max-w-xl text-xs leading-relaxed text-[#8d867c]">
+      <div className="cardsticky bottom-4 mt-5 flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-xl text-xs leading-relaxed text-[#8e8e9a]">
           {isCompliance
             ? `合规检测：检查 ${complianceMarket} 市场与 ${platform} 平台的 ${complianceType}。`
             : isLocalize
@@ -623,7 +623,7 @@ export function ToolWorkbench({
                 : `文生图：按文字描述生成，生成后可按 ${aspect} 画幅下载${onApplied ? '或应用回槽位' : ''}。`}
         </p>
         <button type="button" onClick={() => generate()} disabled={!canGenerate}
-          className="rounded-xl bg-[#ef6a4c] px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,106,76,.22)] transition hover:bg-[#d95d41] disabled:cursor-not-allowed disabled:bg-[#c9c1b7] disabled:shadow-none">
+          className="rounded-xl bg-ink px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(13,13,13,.18)] transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-line-strong disabled:shadow-none">
           {busy ? (isCompliance ? '正在检测…' : '正在生成…') : isCompliance ? `开始合规检测（${complianceMarket} · ${complianceType}）` : isLocalize ? `开始本地化（${market}）` : mode === 'edit' ? '基于当前图重新生成' : '开始生成'}
         </button>
       </div>

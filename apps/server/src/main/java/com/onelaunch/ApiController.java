@@ -13,11 +13,28 @@ public class ApiController {
     private final ImagePipelineService pipeline;
     private final ModelRouterImageClient imageClient;
     private final ModelRouterVisionClient visionClient;
+    private final ComplianceRuleLibrary ruleLibrary;
 
-    public ApiController(ImagePipelineService pipeline, ModelRouterImageClient imageClient, ModelRouterVisionClient visionClient) {
+    public ApiController(ImagePipelineService pipeline, ModelRouterImageClient imageClient, ModelRouterVisionClient visionClient, ComplianceRuleLibrary ruleLibrary) {
         this.pipeline = pipeline;
         this.imageClient = imageClient;
         this.visionClient = visionClient;
+        this.ruleLibrary = ruleLibrary;
+    }
+
+    /** 平台与市场合规规则快照（市场规范页浏览）：与生成端、质检端读同一规则库。 */
+    @GetMapping("/compliance-rules")
+    public Map<String, Object> complianceRules() {
+        return ruleLibrary.snapshot();
+    }
+
+    /** AI 润色（创作向导商品资料步）：卖点 / 关键词文案打磨，可覆盖文本模型。 */
+    @PostMapping("/polish")
+    public ResponseEntity<?> polish(@RequestBody ApiModels.PolishRequest request) {
+        if (request.text() == null || request.text().isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "请提供待润色的文本 text"));
+        if (request.text().length() > 4000) return ResponseEntity.badRequest().body(Map.of("error", "文本过长（≤4000 字）"));
+        try { return ResponseEntity.ok(new ApiModels.PolishResponse(pipeline.polish(request.text(), request.kind(), request.model()))); }
+        catch (Exception e) { return ResponseEntity.internalServerError().body(Map.of("error", ApiErrors.message(e))); }
     }
 
     @PostMapping("/compliance-check")

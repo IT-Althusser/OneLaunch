@@ -89,6 +89,25 @@ class ImageQualityContractTest {
         assertTrue(qa.contains("不构成未通过理由"));
     }
 
+    @Test void modelContractCarriesClothingVetoOnBothEnds() {
+        // 2026-10-04 用户红线：模特图严禁赤膊/裸露上身——生成、质检、修复、单图、图生图前置五处必须全部携带
+        String generation = ImageQualityContract.generationBlock("模特图");
+        String qa = ModelRouterVisionClient.imageTypeRule("模特图");
+        assertTrue(generation.contains("严禁任何性别的模特裸露上身、赤膊"));
+        assertTrue(generation.contains("补穿合身上衣"));
+        assertTrue(generation.contains("优先级高于参考图人物的穿着状态"));
+        assertTrue(qa.contains("一票否决"));
+        assertTrue(qa.contains("赤膊"));
+        assertTrue(qa.contains("必须判为未通过"));
+        // 图生图路径的前置硬约束块（编辑模型对起始指令最敏感，着装令必须前置）
+        String refBlock = ImagePipelineService.referenceConstraintBlock("模特图");
+        assertTrue(refBlock.contains("严禁任何性别赤膊、裸露上身"));
+        assertTrue(refBlock.contains("补穿合身上衣"));
+        // 修复端与单图路径
+        assertTrue(ImageQualityContract.repairFocus("模特图").contains("补穿合身上衣"));
+        assertTrue(ImageQualityContract.MODEL_SINGLE_ACCEPTANCE.contains("严禁任何性别裸露上身、赤膊"));
+    }
+
     @Test void referenceProfilePromptForbidsSpeculationAndParseIsLenient() {
         assertTrue(ModelRouterVisionClient.REFERENCE_PROFILE_PROMPT.contains("禁止推测品牌"));
         assertTrue(ModelRouterVisionClient.REFERENCE_PROFILE_PROMPT.contains("严禁猜测拼写"));

@@ -2,38 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif; color: #17202b; background: #f4f1eb; font-synthesis: none; text-rendering: optimizeLegibility; }
-body { margin: 0; min-width: 320px; background: #f4f1eb; }
-button, input, textarea { font: inherit; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible, [role=button]:focus-visible { outline: 3px solid rgba(239, 106, 76, 0.3); outline-offset: 2px; }
-* { letter-spacing: 0 !important; }
+/*
+ * OneLaunch 设计系统 —— 极简中性（OpenAI/Apple 式）
+ * 唯一签名元素：首页「装货起飞」动画；其余界面保持白底墨字、精确间距、极轻阴影。
+ */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: #0d0d0d;
+  background: #ffffff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+body { margin: 0; min-width: 320px; background: #ffffff; }
+button, input, textarea, select { font: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible, [role=button]:focus-visible {
+  outline: 2px solid rgba(13, 13, 13, 0.55);
+  outline-offset: 2px;
+}
 button, a, p { overflow-wrap: anywhere; }
-@media (hover: none), (max-width: 1023px) {
-  .group .opacity-0 { opacity: 1; }
-  button, select { min-height: 36px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .log-line, .panel-pop { animation: none !important; }
-  .slot-shimmer::after { animation: none !important; width: 100% !important; opacity: .5; }
-  .animate-pulse { animation: none !important; }
-}
-::selection { color: #fffaf3; background: #ef6a4c; }
+::selection { color: #ffffff; background: #0d0d0d; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
-*::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #c8c2b8; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #d4d4dc; background-clip: padding-box; }
 *::-webkit-scrollbar-track { background: transparent; }
+
 @layer components {
-  .panel { border: 1px solid #e2ddd5; border-radius: 20px; background: #fffdf9; box-shadow: 0 12px 32px rgba(51, 43, 32, 0.06); }
-  .field { width: 100%; border: 1px solid #d9d3c9; border-radius: 12px; background: #fffdf9; padding: 12px 14px; color: #17202b; transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease; }
-  .field::placeholder { color: #a49d92; }
-  .field:focus { border-color: #ef6a4c; background: #fff; box-shadow: 0 0 0 4px rgba(239, 106, 76, 0.1); outline: none; }
-  .eyebrow { color: #8b8479; font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
-  .select-field { appearance: none; -webkit-appearance: none; padding-right: 34px; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23776' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; }
+  /* 卡片面：白底 + 发丝边 + 极轻双层阴影 */
+  .card { border: 1px solid #e9e9ee; border-radius: 16px; background: #ffffff; box-shadow: 0 1px 2px rgba(13,13,16,.04), 0 12px 32px rgba(13,13,16,.05); }
+  /* 输入控件 */
+  .field { width: 100%; border: 1px solid #dcdce3; border-radius: 10px; background: #ffffff; padding: 11px 14px; color: #0d0d0d; transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .field::placeholder { color: #b4b4bf; }
+  .field:focus { border-color: #0d0d0d; box-shadow: 0 0 0 4px rgba(13, 13, 13, 0.07); outline: none; }
+  .select-field { appearance: none; -webkit-appearance: none; padding-right: 34px; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235d5d6b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; }
+  .eyebrow { color: #8e8e9a; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  /* 主按钮：纯黑胶囊（OpenAI 式） */
+  .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 9999px; background: #0d0d0d; color: #ffffff; font-weight: 600; transition: background 150ms ease, transform 150ms ease; }
+  .btn-primary:hover { background: #2d2d33; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { background: #dcdce3; color: #8e8e9a; cursor: not-allowed; transform: none; }
+  /* 次按钮：白底描边 */
+  .btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #dcdce3; border-radius: 10px; background: #ffffff; color: #5d5d6b; font-weight: 600; transition: border-color 150ms ease, color 150ms ease; }
+  .btn-ghost:hover { border-color: #0d0d0d; color: #0d0d0d; }
+  .btn-ghost:disabled { opacity: 50; cursor: not-allowed; }
 }
 
-/* 生成工作台的动效语言：思考日志逐行浮现 + 生成中槽位的扫描占位 */
+/* 生成工作台动效：日志行浮现 + 运行中槽位扫描（运行态=蓝） */
 @keyframes logIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .log-line { animation: logIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.panel-pop { animation: logIn 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes shimmerSweep { 0% { transform: translateX(-120%); } 100% { transform: translateX(240%); } }
 .slot-shimmer { position: relative; overflow: hidden; }
-.slot-shimmer::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(239, 106, 76, 0.45), transparent); animation: shimmerSweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.slot-shimmer::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.30), transparent); animation: shimmerSweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+/* 首页跑道中线缓流（待命态的环境动效） */
+@keyframes runwayDrift { to { stroke-dashoffset: -56; } }
+.runway-dash { animation: runwayDrift 2.8s linear infinite; }
+
+/* 首页文案入场（backwards 填充：结束后交还内联样式，供退场动画接管） */
+@keyframes heroIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.hero-in { animation: heroIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) backwards; animation-delay: var(--hero-delay, 0s); }
+
+/* 视图入场（外壳内首次挂载时轻微上浮） */
+@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.view-in { animation: viewIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .log-line { animation: none !important; }
+  .slot-shimmer::after { animation: none !important; width: 100% !important; opacity: .5; }
+  .runway-dash { animation: none !important; }
+  .hero-in { animation: none !important; }
+  .view-in { animation: none !important; }
+  .animate-pulse { animation: none !important; }
+}

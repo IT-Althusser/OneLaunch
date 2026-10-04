@@ -103,6 +103,10 @@ public final class ApiModels {
     public record ImageResponse(GeneratedImage image) {}
     public record LocalizeResponse(GeneratedImage image, List<String> appliedAspects, String note, String prompt) {}
 
+    /** AI 润色请求（创作向导商品资料步）：kind = selling-points（卖点分条）| keywords（名词+关键词一行）。 */
+    public record PolishRequest(String text, String kind, String model) {}
+    public record PolishResponse(String text) {}
+
     /** 流式端点的单条事件：event 为 SSE 事件名，data 为随事件发送的负载。 */
     public record PipelineEvent(String event, Object data) {}
 }

@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiValidationTest {
     @Test void complianceAcceptsOptionalFactsAndPreservesLegacyRequests() throws Exception {
         var vision = mock(ModelRouterVisionClient.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new ApiController(mock(ImagePipelineService.class), mock(ModelRouterImageClient.class), vision)).build();
+        var mvc = MockMvcBuilders.standaloneSetup(new ApiController(mock(ImagePipelineService.class), mock(ModelRouterImageClient.class), vision, mock(ComplianceRuleLibrary.class))).build();
         String request = "{\"imageUrl\":\"https://example.test/a.png\",\"imageType\":\"尺寸图\",\"platform\":\"Amazon\",\"market\":\"US\"%s}";
         mvc.perform(post("/api/compliance-check").contentType(MediaType.APPLICATION_JSON).content(request.formatted(""))).andExpect(status().isOk());
         verify(vision).complianceCheck(null, "https://example.test/a.png", "尺寸图", "Amazon", "US", null, null);
@@ -27,7 +27,7 @@ class ApiValidationTest {
     }
 
     @Test void invalidStreamAndMissingComplianceInputsReturnReadable400() throws Exception {
-        var controller = new ApiController(mock(ImagePipelineService.class), mock(ModelRouterImageClient.class), mock(ModelRouterVisionClient.class));
+        var controller = new ApiController(mock(ImagePipelineService.class), mock(ModelRouterImageClient.class), mock(ModelRouterVisionClient.class), mock(ComplianceRuleLibrary.class));
         var mvc = MockMvcBuilders.standaloneSetup(controller).build();
         mvc.perform(post("/api/images/set/stream").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());

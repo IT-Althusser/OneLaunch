@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import type { ReferenceImage } from '../types';
+import type { ReferenceImage } from '../../types';
 
 /** 与后端 ModelRouterImageClient.MAX_REFERENCE_IMAGES 保持一致 */
 const MAX_IMAGES = 6;
@@ -7,7 +7,7 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const ACCEPT = ['image/jpeg', 'image/png', 'image/webp'];
 
 /**
- * 01 · 商品参考图：本地上传（转 base64 直传网关）+ 粘贴公网图片链接。
+ * 商品参考图：本地上传（转 base64 直传网关）+ 粘贴公网图片链接。
  * 有参考图时五图走图生图，保持商品外观一致。
  */
 export function ReferenceUploader({
@@ -83,33 +83,33 @@ export function ReferenceUploader({
         type="button"
         disabled={full || disabled || reading}
         onClick={() => fileRef.current?.click()}
-        className={`flex min-h-[150px] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed px-4 py-6 transition ${
+        className={`flex min-h-[150px] w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 transition ${
           full
-            ? 'cursor-not-allowed border-[#d9d3c9] bg-[#f4f1eb] text-[#a49d92]'
-            : 'border-[#c8c2b8] bg-[#f8f5ef] text-[#6f685e] hover:border-[#ef6a4c] hover:bg-[#fff1ed] hover:text-[#c84f36]'
+            ? 'cursor-not-allowed border-line-strong bg-mist text-ink-faint'
+            : 'border-line-strong bg-mist text-ink-mid hover:border-ink hover:bg-white hover:text-ink'
         }`}
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current text-lg leading-none">+</span>
         <span className="text-sm font-semibold">{reading ? '正在读取图片…' : full ? `已达 ${maxImages} 张上限` : '添加商品图'}</span>
-        <span className="text-[11px] text-[#6f685e]">JPEG / PNG / WebP · 最多 {maxImages} 张 · 单张 ≤ 8MB</span>
+        <span className="text-[11px] text-ink-faint">JPEG / PNG / WebP · 最多 {maxImages} 张 · 单张 ≤ 8MB</span>
       </button>
 
       {images.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {images.map((img) => (
-            <div key={img.id} className="group relative overflow-hidden rounded-xl border border-[#e2ddd5] bg-white">
+            <div key={img.id} className="group relative overflow-hidden rounded-xl border border-line bg-white">
               <img src={img.src} alt={img.name} className="aspect-square w-full object-cover" />
               <button
                 type="button"
                 disabled={disabled || reading}
                 onClick={() => onRemove(img.id)}
                 aria-label={`移除 ${img.name}`}
-                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
               >
                 ×
               </button>
               {img.kind === 'url' && (
-                <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1.5 py-0.5 text-[9px] text-white">链接</span>
+                <span className="absolute bottom-0 left-0 right-0 truncate bg-ink/60 px-1.5 py-0.5 text-[9px] text-white">链接</span>
               )}
             </div>
           ))}
@@ -125,17 +125,12 @@ export function ReferenceUploader({
           placeholder="或粘贴公网图片链接后回车"
           aria-label="粘贴图片链接"
         />
-        <button
-          type="button"
-          onClick={addUrl}
-          disabled={full || disabled || reading}
-          className="shrink-0 rounded-xl border border-[#d9d3c9] bg-[#fffdf9] px-3.5 text-xs font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <button type="button" onClick={addUrl} disabled={full || disabled || reading} className="btn-ghost shrink-0 px-3.5 text-xs">
           添加
         </button>
       </div>
-      {error && <p className="mt-2 text-xs text-[#c84f36]">{error}</p>}
-      <p className="mt-2 text-[11px] leading-relaxed text-[#9a9389]">
+      {error && <p className="mt-2 text-xs text-bad">{error}</p>}
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
         可多选同一商品的不同角度。有参考图时走图生图，五图与商品外观保持一致。
       </p>
     </div>
