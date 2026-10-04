@@ -241,6 +241,7 @@ export default function App() {
                     <ToolWorkbench
                       type={page.type}
                       platform={page.platform}
+                      platformMarkets={catalog?.platformMarkets}
                       current={page.slotKey ? slotIndex[page.slotKey] ?? null : page.source ?? null}
                       promptOverride={page.promptOverride}
                       models={selection}

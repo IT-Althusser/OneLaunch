@@ -107,7 +107,7 @@
 
 ### 规则知识库
 
-合规规则位于 `apps/server/src/main/resources/compliance-rules/`：`platform/` 下 4 个文件、`market/` 下 5 个文件。新增平台或市场只需增加规则文件，缺失文件自动回退内置文案并告警。五图生成的风格规则暂留 `ImagePipelineService` 代码，后续统一入库；进一步计划构建规则与案例向量知识库，引入 RAG 检索增强合规检测。
+合规规则位于 `apps/server/src/main/resources/compliance-rules/`：`platform/` 4 文件（官方硬性规范 + 平台风格，按图类分节）与 `market/` 5 文件（图片可见客观违规类市场要求）。**硬性规则同时注入生成端与质检端，风格规则只影响生成**；平台→市场按 `resolveMarket` 自动绑定（用户显式选择可覆盖）。新增平台或市场只需增加规则文件，缺失文件自动回退内置文案并告警；进一步计划构建规则与案例向量知识库，引入 RAG 检索增强合规检测。
 
 ## 快速开始
 

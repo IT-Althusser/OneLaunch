@@ -117,7 +117,7 @@ class ModelRouterEditEndpointTest {
         ModelRouterImageClient client = spy(withOverride); // 真实装配 + 打桩网关清单调用（不发起真实 HTTP）
         org.mockito.Mockito.doReturn(List.of("gpt-image2", "gpt-image2", "dall-e-3")).when(client).listEditModels();
         org.mockito.Mockito.doReturn(List.of("wan", "qwen-image-2.0")).when(client).listModels();
-        var service = new ImagePipelineService(chat, client, vision); // service 持有 spy，打桩才生效
+        var service = new ImagePipelineService(chat, client, vision, new ComplianceRuleLibrary()); // service 持有 spy，打桩才生效
         org.springframework.test.util.ReflectionTestUtils.setField(service, "qaScope", "all");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "defaultImageModel", "wan");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "defaultEditModel", "qwen-image-2.0");
@@ -140,7 +140,7 @@ class ModelRouterEditEndpointTest {
         when(images.listModels()).thenReturn(List.of("wan2.7-image-pro", "qwen-image-2.0"));
         var vision = mock(ModelRouterVisionClient.class);
         when(vision.defaultModel()).thenReturn("vision-test");
-        var service = new ImagePipelineService(chat, images, vision);
+        var service = new ImagePipelineService(chat, images, vision, new ComplianceRuleLibrary());
         org.springframework.test.util.ReflectionTestUtils.setField(service, "qaScope", "all");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "defaultImageModel", "wan2.7-image-pro");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "defaultEditModel", "qwen-image-2.0");
