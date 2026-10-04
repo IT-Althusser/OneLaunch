@@ -54,7 +54,7 @@ class VisionFormatRecoveryTest {
 
     @Test void missingFactsAndUnreadableMarksAreExplicitlyNonBlocking() {
         var client = client();
-        String prompt = client.compliancePrompt("白底图", "Amazon", false);
+        String prompt = client.compliancePrompt("白底图", "Amazon", false, "US");
         assertTrue(prompt.contains("资料未提供某属性且图片也未声明时不构成问题"));
         assertTrue(prompt.contains("无法逐字读出的痕迹"));
         assertTrue(prompt.contains("轻微阴影"));
@@ -62,13 +62,13 @@ class VisionFormatRecoveryTest {
 
     @Test void referenceImagePromptCarriesFidelityCheckAndExclusions() {
         var client = client();
-        String withRef = client.compliancePrompt("白底图", "Amazon", true);
+        String withRef = client.compliancePrompt("白底图", "Amazon", true, "US");
         assertTrue(withRef.contains("第一张是商品原始参考图"));
         assertTrue(withRef.contains("B 商品本体一致性"));
         assertTrue(withRef.contains("水滴、冰块、闪光、亮片"));
         assertTrue(withRef.contains("不得缺失参考图上存在的部件"));
-        assertTrue(withRef.contains("不属于检测范围（不得作为问题项）：商标授权与品牌侵权、广告法与市场法规"));
-        String withoutRef = client.compliancePrompt("白底图", "Amazon", false);
+        assertTrue(withRef.contains("看不见的宣称/定价/见证类广告问题（市场法规仅限上述画面可见硬性要求）"));
+        String withoutRef = client.compliancePrompt("白底图", "Amazon", false, "US");
         assertTrue(withoutRef.contains("本次未提供参考图，跳过"));
         assertFalse(withoutRef.contains("第一张是商品原始参考图"));
     }

@@ -26,7 +26,7 @@ export function CreatePanel({
   const [productName, setProductName] = useState('');
   const [sellingPoints, setSellingPoints] = useState('');
   const [platforms, setPlatforms] = useState<string[]>(['Amazon']);
-  const [market, setMarket] = useState('US');
+  const [market, setMarket] = useState(''); // 空 = 自动跟随平台（后端按 marketForPlatform 映射），显式选择为覆盖
   const [detailTone, setDetailTone] = useState<ImagePipelineInput['detailTone']>('专业可信');
   const [localError, setLocalError] = useState('');
 
@@ -84,8 +84,8 @@ export function CreatePanel({
               <input id="product-name" className="field" value={productName} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductName(e.target.value)} placeholder="例如：轻量通勤托特包；有参考图时可留空" />
             </div>
             <div>
-              <label htmlFor="target-market" className="mb-1.5 block text-xs font-semibold text-[#514b43]">合规检测目标市场</label>
-              <select id="target-market" className="field" value={market} onChange={(e) => setMarket(e.target.value)}><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select>
+              <label htmlFor="target-market" className="mb-1.5 block text-xs font-semibold text-[#514b43]">目标市场（默认自动跟随平台）</label>
+              <select id="target-market" className="field" value={market} onChange={(e) => setMarket(e.target.value)}><option value="">自动跟随平台</option><option>US</option><option>UK</option><option>欧盟</option><option>日本</option><option>东南亚</option></select>
             </div>
             <div>
               <label htmlFor="selling-points" className="mb-1.5 block text-xs font-semibold text-[#514b43]">商品卖点（可选）</label>

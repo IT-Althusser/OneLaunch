@@ -34,7 +34,7 @@ class ImageQualityContractTest {
         var chat = mock(ChatClient.class);
         var images = mock(ModelRouterImageClient.class);
         var vision = mock(ModelRouterVisionClient.class);
-        var service = new ImagePipelineService(chat, images, vision);
+        var service = new ImagePipelineService(chat, images, vision, new ComplianceRuleLibrary());
         ReflectionTestUtils.setField(service, "qaScope", "all");
         ReflectionTestUtils.setField(service, "defaultImageModel", "image-test");
         ReflectionTestUtils.setField(service, "defaultEditModel", "edit-test");

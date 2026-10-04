@@ -30,7 +30,7 @@ class PipelineRegressionTest {
         when(images.dimensionGuide(any(), anyString())).thenReturn(new ModelRouterImageClient.ImageResult(List.of("data:image/png;base64,dGVzdA=="), "1600x1200"));
         when(vision.defaultModel()).thenReturn("vision-test");
         when(vision.ruleSource(anyString(), anyString())).thenReturn("test rules");
-        var service = new ImagePipelineService(chat, images, vision);
+        var service = new ImagePipelineService(chat, images, vision, new ComplianceRuleLibrary());
         ReflectionTestUtils.setField(service, "qaScope", scope);
         ReflectionTestUtils.setField(service, "defaultImageModel", "image-test");
         ReflectionTestUtils.setField(service, "defaultEditModel", "edit-test");
@@ -237,6 +237,40 @@ class PipelineRegressionTest {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    @Test void platformOfficialRulesReachGenerationAndReviewPrompts() {
+        var service = service("all");
+        var vision = new ModelRouterVisionClient(org.springframework.web.client.RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory()), "https://example.test", "", "vision-test", new ComplianceRuleLibrary());
+        for (String type : List.of("白底图", "场景图")) {
+            String generation = service.buildPrompt(type, "托特包", "轻量", "Amazon", List.of());
+            String review = vision.compliancePrompt(type, "Amazon", false, "US");
+            // 平台硬性条款 id 在生成端与质检端必须同时出现（防两端漂移）
+            assertTrue(generation.contains("【AM-G1】"), type + " 生成端缺少平台通用硬性条款");
+            assertTrue(review.contains("【AM-G1】"), type + " 质检端缺少平台通用硬性条款");
+            // 市场种子条目注入（US 绝对化用语禁令）
+            assertTrue(review.contains("【US-G1】"), "质检端缺少市场种子条目");
+        }
+        // 平台名不出现在生成提示词（替换为"目标渠道"）
+        String prompt = service.buildPrompt("白底图", "托特包", "轻量", "Amazon", List.of());
+        assertFalse(prompt.contains("Amazon"));
+    }
+
+    @Test void resolveMarketPrefersExplicitOverrideElseAutoMapping() {
+        assertEquals("欧盟", ImagePipelineService.resolveMarket("欧盟", "Amazon")); // 显式覆盖优先
+        assertEquals("US", ImagePipelineService.resolveMarket(null, "Amazon")); // 空 = 按平台自动映射
+        assertEquals("东南亚", ImagePipelineService.resolveMarket("", "TikTok Shop"));
+        assertEquals("欧盟", ImagePipelineService.resolveMarket("  ", "Temu"));
+    }
+
+    @Test void modelCatalogExposesPlatformMarketBinding() {
+        var service = service("all");
+        var catalog = service.modelCatalog();
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, String> platformMarkets = (java.util.Map<String, String>) catalog.get("platformMarkets");
+        assertEquals("US", platformMarkets.get("Amazon"));
+        assertEquals("东南亚", platformMarkets.get("TikTok Shop"));
+        assertEquals(5, ((List<?>) catalog.get("markets")).size());
     }
 
     @Test void editGatewayRouteDefaultsToMainAndPassesCustomThrough() {

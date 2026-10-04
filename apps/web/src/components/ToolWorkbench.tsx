@@ -46,11 +46,16 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** 平台默认投放市场（与后端 ImagePipelineService.marketForPlatform 一致）：生成结果自动合规复检用 */
-function marketForPlatform(platform: string): string {
+/** 平台默认投放市场兜底表（优先用后端 /api/models 下发的 platformMarkets，单一只读副本仅兜底） */
+function marketForPlatform(platform: string, platformMarkets?: Record<string, string>): string {
+  const mapped = platformMarkets?.[platform];
+  if (mapped) return mapped;
   switch (platform) {
     case 'TikTok Shop': case 'Shopee': return '东南亚';
     case 'Temu': return '欧盟';
+    case '日本': return '日本';
+    case 'UK': return 'UK';
+    case '欧洲': return '欧盟';
     default: return 'US';
   }
 }
@@ -102,11 +107,14 @@ export function ToolWorkbench({
   onBusyChange,
   idScope,
   productFacts,
+  platformMarkets,
 }: {
   type: SideToolType;
   platform: string;
   current?: { url: string; size: string; prompt: string; type?: ImageType } | null;
   models: ModelSelection;
+  /** 后端 /api/models 下发的平台→市场映射（缺失时用本地兜底表） */
+  platformMarkets?: Record<string, string>;
   /** 外部带入的提示词（如质检修复样例），优先级最高 */
   promptOverride?: string | null;
   onBack: () => void;
@@ -132,7 +140,7 @@ export function ToolWorkbench({
   const [aspects, setAspects] = useState<string[]>(['scene']);
   const [targetLanguage, setTargetLanguage] = useState('英语');
   const [modelProfile, setModelProfile] = useState('欧美面孔模特');
-  const [complianceMarket, setComplianceMarket] = useState(marketForPlatform(platform));
+  const [complianceMarket, setComplianceMarket] = useState(marketForPlatform(platform, platformMarkets));
   const [complianceType, setComplianceType] = useState<ImageType>(current?.type ?? '白底图');
   const [complianceResult, setComplianceResult] = useState<ComplianceResult | null>(null);
   const [aspect, setAspect] = useState<AspectId>(DEFAULT_ASPECT[type] ?? '1:1');
@@ -189,7 +197,7 @@ export function ToolWorkbench({
     setComplianceCheckError('');
     setResultCompliance(null);
     try {
-      const checked = await complianceCheck({ imageUrl: url, imageType: type as ImageType, platform, market: marketForPlatform(platform), visionModel: models.visionModel, productFacts, referenceImageUrl: referenceUrl });
+      const checked = await complianceCheck({ imageUrl: url, imageType: type as ImageType, platform, market: marketForPlatform(platform, platformMarkets), visionModel: models.visionModel, productFacts, referenceImageUrl: referenceUrl });
       if (seq !== checkSeqRef.current) return;
       setResultCompliance(checked);
     } catch (e) {
@@ -538,7 +546,7 @@ export function ToolWorkbench({
           {imageMode && (
             <div className="mt-4 border-t border-[#e2ddd5] pt-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">合规复检 · {platform} · {marketForPlatform(platform)} 市场</span>
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#8b8479]">合规复检 · {platform} · {marketForPlatform(platform, platformMarkets)} 市场</span>
                 {!complianceChecking && (
                   <button type="button" onClick={() => result && checkCompliance(result.image.url)} disabled={busy}
                     className="rounded-md border border-[#d9d3c9] bg-[#fffdf9] px-2 py-0.5 text-[10px] font-semibold text-[#5e584f] transition hover:border-[#ef6a4c] hover:text-[#c84f36] disabled:opacity-50">

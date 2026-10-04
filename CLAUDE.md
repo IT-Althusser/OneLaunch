@@ -142,7 +142,7 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - `POST /api/images/single`：单图生成（三分支：文生图 / referenceImages 参考图生成 / sourceUrl 基于已生成图修改），供侧栏工具工作台与槽位「重新生成 / 修改」。
 - `POST /api/images/localize`：图片本地化（同步图生图编辑；支持场景/文字/模特维度、目标语言和模特形象）。
 - `POST /api/compliance-check`：单图合规检测（合并 P3 本体检验：`referenceImageUrl` 传商品原始参考图时，参考图+待检图一次视觉调用同时输出「①平台规范与图类要求 ②商品本体一致性」两项结论；不传时仅平台规范与图类要求。检测范围仅平台相关——不含商标授权、广告法与市场法规；dimension 枚举：平台规范/商品一致性/文字准确性/其他）。
-- 合规规则知识库位于 `apps/server/src/main/resources/compliance-rules/`；platform 规则注入质检提示词，market 规则仅保留知识库与来源展示（2026-09-08 起市场广告法退出判定）；缺失文件回退内置文案并告警，五图生成风格规则暂留代码。
+- 合规规则知识库（2026-10 结构化升级）：`apps/server/src/main/resources/compliance-rules/`，platform 4 文件 + market 5 文件，新格式为 `## 节名`（通用/五类图）分节 + `- 【id】硬性|风格：内容` 条目（旧扁平格式兼容为通用硬性）。**硬性条目同时进生成端与质检端，风格条目只进生成端**；平台官方硬性规范（Amazon ≥85%/≥1600px、TikTok ≥600px 等）与迁入的 20 组风格条目统一入库，生成端 `platformAndMarketBlock` 与质检端 `compliancePrompt` 从库渲染（两端条款 id 一致性有单测）。市场维度仅"图片可见客观违规"（绝对化文字/禁用标志种子条目），看不见的宣称/定价不判（2026-10-03 决策，回摆 9-08 的"仅平台相关"）；平台→市场绑定：`resolveMarket` 显式覆盖优先、否则按平台自动映射，前端市场下拉默认"自动跟随平台"，映射经 `/api/models` 的 `platformMarkets` 下发。缺失文件回退内置文案并告警；md 有内容即生效（市场内容后置补齐）。
 - `POST /api/detail-page`：独立 AI 详情页自动化（不依赖五图流水线）：名称/卖点 + 平台多选 + 语气 → 画像 + 按平台 AI 组合配图引用与文案（`generatedTypes` 传已有生成图类型供引用）；AI 编排失败降级模板。供侧栏「AI 详情页」工作台调用。
 
 完整接入方式见 `docs/integration-guide.md`，运维见 `docs/runbook.md`，架构见 `docs/architecture.md`。

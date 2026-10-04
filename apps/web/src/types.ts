@@ -178,6 +178,10 @@ export interface ModelCatalog {
   vision: ModelOption[];
   visionAvailable: boolean;
   qaScope?: 'all' | 'white';
+  /** 平台→市场自动映射（后端 marketForPlatform 单一事实源下发） */
+  platformMarkets?: Record<string, string>;
+  /** 可选目标市场列表 */
+  markets?: string[];
   error?: string;
   defaults?: ModelSelection;
 }
