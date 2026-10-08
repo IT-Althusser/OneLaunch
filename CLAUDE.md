@@ -38,10 +38,10 @@ ONE/
 ├── apps/
 │   ├── web/                      # 前端：图片生成工作台（React 18 + TS + Vite + Tailwind）
 │   │   ├── package.json
-│   │   ├── vite.config.ts        # /api 代理到后端（默认 3100，见下方端口说明）
+│   │   ├── vite.config.ts        # /api 代理到后端（默认 3101，见下方端口说明）
 │   │   └── src/
 │   │       ├── App.tsx           # 工作台编排：创作工作台 / 生成工作台双 tab
-│   │       ├── components/       # CreatePanel（01 参考图+02 商品资料三区布局）/ StudioView（槽位+思考日志+单图操作）/ ToolWorkbench（侧栏工具的单图工作台整页）/ ReferenceUploader / RightPanel（03 模型与调用）/ Sidebar
+│   │       ├── components/       # CreatePanel（01 参考图+02 商品资料三区布局）/ StudioView（槽位+思考日志+单图操作）/ ToolWorkbench（侧栏工具的单图工作台整页）/ DetailWorkbench + DetailPages（AI 详情页）/ ComplianceIssues / ImageLightbox / ReferenceUploader / RightPanel（03 模型与调用）/ Sidebar
 │   │       ├── api/client.ts     # 后端 API 客户端（含 SSE 流式解析）
 │   │       └── types.ts          # 流水线输入/输出类型
 │   └── server/                   # 后端：Java 25 + Spring Boot 4 + Spring AI（Maven 工程）
@@ -51,13 +51,18 @@ ONE/
 │           ├── java/com/onelaunch/
 │           │   ├── ServerApplication.java      # 入口
 │           │   ├── ApiController.java          # /api 路由（含 /api/models 与 SSE 流式端点）
-│           │   ├── ImagePipelineService.java   # 五图流水线编排（同步 + SSE 事件流双模式）
+│           │   ├── ImagePipelineService.java   # 五图流水线编排（同步 + SSE 事件流双模式，含 P3 本体检验与修复回流）
 │           │   ├── ModelRouterImageClient.java # 图片生成/编辑客户端（/chat/completions，支持 base64 参考图与模型覆盖）
-│           │   ├── ModelRouterVisionClient.java# 视觉理解客户端（白底图质检：内容理解与合规检测，嵌套 image_url 传图）
+│           │   ├── ModelRouterVisionClient.java# 视觉理解客户端（全图质检与合规检测：平台规范 + P3 商品本体一致性，嵌套 image_url 传图）
 │           │   ├── TokenPlanChatModel.java     # Spring AI ChatModel 实现（文本，支持按请求覆盖模型）
 │           │   ├── ChatClientConfig.java       # ChatClient 装配
 │           │   ├── HttpClientConfig.java       # RestClient 超时配置
-│           │   └── ApiModels.java              # 请求/响应模型（含参考图与模型覆盖字段）
+│           │   ├── ApiModels.java              # 请求/响应模型（含参考图与模型覆盖字段）
+│           │   ├── ApiErrors.java              # 统一错误解析与图片 URL 校验
+│           │   ├── ComplianceRuleLibrary.java  # 结构化合规规则加载（平台与市场硬性条目注入生成和质检，风格条目仅注入生成）
+│           │   ├── WhiteBackgroundSanitizer.java    # 确定性白底化（Java 2D 泛洪填充，白底图直出路径）
+│           │   ├── CompositeCompareRenderer.java    # 确定性对比图渲染（左全景 + 右 bbox 自适应特写）
+│           │   └── DimensionGuideRenderer.java      # 尺寸图本地渲染器（Java 2D 尺寸标注图）
 │           └── resources/
 │               ├── application.yml             # 端口 / Base URL / 模型 ID / qa-scope
 │               └── compliance-rules/           # 合规规则知识库：platform/ 4 文件 + market/ 5 文件
@@ -81,7 +86,7 @@ ONE/
 # 安装依赖（仓库根目录执行）
 npm install
 
-# 启动后端（Spring Boot，默认 http://localhost:3100）
+# 启动后端（Spring Boot，默认 http://localhost:3101）
 npm run dev:server
 
 # 启动前端（Vite dev server，默认 http://localhost:5173）
@@ -94,7 +99,7 @@ npm run build
 mvn -f apps/server/pom.xml spring-boot:run
 ```
 
-端口说明：后端端口由 `PORT` 环境变量控制（默认 3100），并与 `apps/web/vite.config.ts` 的 `/api` 代理保持一致。前端 5173 被占用时 Vite 会自动顺延（如 5174）。
+端口说明：后端端口由 `PORT` 环境变量控制（默认 3101，2026-09-08 起从 3100 调整），并与 `apps/web/vite.config.ts` 的 `/api` 代理保持一致。前端 5173 被占用时 Vite 会自动顺延（如 5174）。
 
 环境变量（`apps/server/.env`，从 `.env.example` 复制）：
 
@@ -152,7 +157,7 @@ Token Plan 网关上**所有能力统一走 `POST /v1/chat/completions`**（同�
 - **五图类型**：白底图、场景图、模特图、对比图、尺寸图（常量 `IMAGE_TYPES`，`apps/server/src/main/java/com/onelaunch/ImagePipelineService.java`）。
 - **平台策略**：每个目标平台均生成全部五图（10 图 = 平台数 × 5）；提示词按「平台 × 图类」注入 20 组差异化风格与合规规则（`platformRule`），多平台出图互不雷同、贴合各平台自身特色。
 - **本地预检闸门（2026-10-03）**：视觉质检前先过 `ImagePrecheck`（Java 2D 纯本地：清晰度/噪点/场景背景均匀度/模特图人物存在性），预检不过直接进修复并跳过视觉质检调用，修复轮产物先过本地预检、通过才发视觉质检（质检始终针对最终候选图）。阈值集中在 `application.yml` `quality-policy`，宁松勿紧防误杀。**噪点类失败重画路由**：存在质检通过的白底图（干净基准）时，修复参考为 `[干净白底基准, P3]` 并全面重绘，不在噪点图上修补；**severity 门控**：`quality-policy.repair.min-severity`（默认高）以下仅记录建议不消耗修复轮次，无结构化分级时维持必修。
-- **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。两种模式的白底图未通过且有修复提示词时最多重试两轮（MAX_REPAIR_ATTEMPTS=2，白底图另有文生图重制兜底一次），二次检查沿用当前范围；其他图仅输出建议。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
+- **降级策略**：画像失败降级纯文本，详情页失败降级模板；`qa-scope=all` 默认检测全部五类图，`white` 为白底兼容路径。未通过且有修复提示词、满足严重度条件的图自动进入修复回流（`quality-policy.repair.max-attempts` 默认 2 轮，常规修复参考图 `[当前图, P3]`，噪点类按上述干净基准路由；白底/对比图修复后做背景纯白化兜底）；白底图修复轮用尽后另有文生图重制兜底；仍失败保留结果并提示到单图工作台。视觉调用/解析失败降级人工复检，不标为审核通过。规则文件启动加载到内存，缺失/空文件告警并用通用文案兜底，SSE 日志注明来源。
 - **白底判定容差（踩坑警示，改检测提示词必须保留）**：AI 生成图的"纯白"实际为 RGB 245–254 带轻微压缩噪点，检测端苛求 RGB 255 会把正常噪点判"高噪点"，修复循环永不收敛；`ModelRouterVisionClient` 检测提示词已注入容差（各通道 ≥245 且均匀干净即合规，轻微噪点/极浅渐变不算违规），生成端 `editFromSourcePrompt` 仍要求完全重绘背景，两端容差必须匹配。
 - **工具工作台后台运行**：前端单图工具工作台实例常驻挂载、切换仅隐藏（`App.tsx` 的 `toolPages`/`toolPage`），生成中切走不打断任务；单图工具生成五类图后自动调 `/api/compliance-check` 复检（带锚点参考图做 P3 本体检验）并支持一键按修复指令再生成；生成工作台槽位「重新生成/修改」成功后同样自动复检。不得改回 `tab === 'tool'` 条件挂载（会中断运行中的任务）。
 - **角色分工**：画像 Agent → 提示词 Agent → 生成工具 → 质检 Agent → 合规 Agent → 详情页 Agent；五个职责角色由 Spring Boot 编排，提示词角色使用模板与画像，不额外调用 LLM，质检/合规在 all 模式共用一次视觉调用。

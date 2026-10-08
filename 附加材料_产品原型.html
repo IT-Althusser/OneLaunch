@@ -195,20 +195,20 @@
               <label class="check"><input type="checkbox">Shopee</label>
             </div>
             <button class="btn">生成五图套图 →</button>
-            <div class="hint">每个平台均生成全部五图（白底 / 场景 / 模特 / 对比 / 尺寸），提示词按「平台 × 图类」差异化（每平台独有风格与合规规则）；白底图自动视觉质检（qwen3.6-plus）。</div>
+            <div class="hint">每个平台均生成全部五图（白底 / 场景 / 模特 / 对比 / 尺寸），提示词按「平台 × 图类」差异化（每平台独有风格与合规规则）；全五图自动质检 + P3 商品本体一致性检验（qwen3.6-plus）。</div>
           </div>
 
           <!-- 右：进度 + 结果 -->
           <div style="display:flex;flex-direction:column;gap:14px;">
             <div class="card">
               <h3>PIPELINE · 流水线进度</h3>
-              <h4>商品画像 → 提示词组装 → 五图生成 → 平台适配 → 视觉质检</h4>
+              <h4>商品画像 → 提示词组装 → 五图生成 → 平台适配 → 质检与 P3 本体检验</h4>
               <div class="steps">
                 <div class="step"><span class="dot">✓</span>商品画像（qwen3.7-max 构建商品画像）<span class="st">done</span></div>
                 <div class="step"><span class="dot">✓</span>Amazon 提示词组装（图类模板 + 平台风格 · 五类图各一条）<span class="st">done</span></div>
                 <div class="step"><span class="dot">✓</span>Amazon 图片生成（wan2.7-image-pro · 5 类）<span class="st">成功 5/5</span></div>
                 <div class="step"><span class="dot">✓</span>TikTok Shop 五图生成（平台差异化风格）<span class="st">成功 5/5</span></div>
-                <div class="step"><span class="dot">✓</span>质检 Agent + 合规 Agent（qwen3.6-plus · 五图检测 · issues + suggestion）<span class="st">已标注 2/2</span></div>
+                <div class="step"><span class="dot">✓</span>质检 Agent + 合规 Agent（qwen3.6-plus · 五图检测 + P3 本体检验 · issues + suggestion）<span class="st">已标注 2/2</span></div>
               </div>
               <div class="profile">商品画像（AI 理解结果）
 品类：女士通勤托特包
@@ -230,19 +230,19 @@
                 </figure>
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#dcebe4"/><circle cx="76" cy="22" r="10" fill="#f4d35e"/><rect y="70" width="100" height="30" fill="#b9d4c6"/><rect x="34" y="42" width="32" height="28" rx="3" fill="#2f3a37"/><path d="M40 42 Q50 28 60 42" stroke="#2f3a37" stroke-width="3.5" fill="none"/></svg></div>
-                  <figcaption><span>场景图</span><span class="qa">—</span></figcaption>
+                  <figcaption><span>场景图</span><span class="qa">质检通过</span></figcaption>
                 </figure>
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#eef2f0"/><circle cx="50" cy="26" r="10" fill="#8a9a93"/><path d="M36 78 L40 42 Q50 36 60 42 L64 78 Z" fill="#576560"/><rect x="62" y="52" width="16" height="18" rx="2" fill="#2f3a37"/></svg></div>
-                  <figcaption><span>模特图</span><span class="qa">—</span></figcaption>
+                  <figcaption><span>模特图</span><span class="qa">质检通过</span></figcaption>
                 </figure>
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#f6f8f7"/><line x1="50" y1="12" x2="50" y2="88" stroke="#c9d6d0" stroke-width="1.5"/><rect x="18" y="42" width="22" height="26" rx="3" fill="#aab7b1"/><rect x="60" y="36" width="24" height="34" rx="3" fill="#2f3a37"/><text x="29" y="82" font-size="8" fill="#8a9a93" text-anchor="middle">普通</text><text x="72" y="82" font-size="8" fill="#0b5d49" text-anchor="middle">轻量 380g</text></svg></div>
-                  <figcaption><span>对比图</span><span class="qa">—</span></figcaption>
+                  <figcaption><span>对比图</span><span class="qa">质检通过</span></figcaption>
                 </figure>
                 <figure class="fig">
                   <div class="ph"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#ffffff"/><rect x="32" y="34" width="36" height="32" rx="3" fill="#2f3a37"/><line x1="32" y1="26" x2="68" y2="26" stroke="#0e8f6f" stroke-width="1.5"/><text x="50" y="22" font-size="7" fill="#0b5d49" text-anchor="middle">40cm</text><line x1="76" y1="34" x2="76" y2="66" stroke="#0e8f6f" stroke-width="1.5"/><text x="84" y="52" font-size="7" fill="#0b5d49" text-anchor="middle">34cm</text></svg></div>
-                  <figcaption><span>尺寸图</span><span class="qa">—</span></figcaption>
+                  <figcaption><span>尺寸图</span><span class="qa">质检通过</span></figcaption>
                 </figure>
               </div>
 
@@ -313,8 +313,8 @@
             <div class="step"><span class="dot">1</span>输入：商品名称、核心卖点、详情页语气、目标平台（多选）</div>
             <div class="step"><span class="dot">2</span>商品画像：qwen3.7-max 构建结构化商品画像（失败时降级纯文本拼接）</div>
             <div class="step"><span class="dot">3</span>提示词组装：图类模板 + 平台风格 + 画像，五类图片各一条生成提示词</div>
-            <div class="step"><span class="dot">4</span>五图生成：wan2.7-image-pro 逐类同步生成（每平台全五图，提示词按平台差异化）</div>
-            <div class="step"><span class="dot">5</span>质检 Agent + 合规 Agent：qwen3.6-plus 检测五图，输出 issues、suggestion；白底图未通过自动重试一次</div>
+            <div class="step"><span class="dot">4</span>五图生成：wan2.7-image-pro 逐类同步生成（白底/对比图优先确定性直出，0% 模型重绘保真；每平台全五图，提示词按平台差异化）</div>
+            <div class="step"><span class="dot">5</span>质检 Agent + 合规 Agent：qwen3.6-plus 检测五图（平台合规 + 以用户参考图为基准的 P3 本体一致性），输出 issues、suggestion；未通过自动按修复指令回流重生成（当前图 + P3 双参考）</div>
             <div class="step"><span class="dot">6</span>输出：多平台上架图包（含步骤状态、商品画像、质检结论、详情页草稿）</div>
           </div>
           <div class="row2" style="margin-top:12px;">

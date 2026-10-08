@@ -8,7 +8,7 @@ mvn -f apps/server/pom.xml spring-boot:run   # 或 npm run dev:server
 npm run dev:web
 ```
 
-默认前端端口为 5173，后端端口由 `apps/server/.env` 的 `PORT` 控制，当前为 3100。
+默认前端端口为 5173，后端端口由 `apps/server/.env` 的 `PORT` 控制，当前为 3101。
 
 ## 冒烟检查
 

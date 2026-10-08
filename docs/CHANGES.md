@@ -89,6 +89,18 @@ gpt-image-2 实测出图质量显著优于 qwen-image-2.0（用户确认），�
 - **文档口径修正**：README / CLAUDE.md / architecture.md 中"最多修复一次/重试一次"与代码 `MAX_REPAIR_ATTEMPTS=2` 不符，统一修正为"最多两轮修复（白底图另有一次文生图重制兜底）"。
 - **测试**：新增 `ImageQualityContractTest`（两端条款 id 一致、未知图类拒绝、修复约束覆盖、参考画像提示词禁推测、JSON 解析宽容性与空字段剔除）；`PipelineRegressionTest` 适配 8 参 complianceCheck，新增参考画像注入生成/修复/质检三端与失败静默降级两个回归用例；`describeReference` 每流水线仅调用一次有断言。
 
+## 2026-09-09（十二）：代码审查——文档与附加材料图同步 09-08 P3 改造（无代码变更）
+
+用户要求：审查垃圾代码、旧代码与未更新的图，并更新。经两个子代理与人工复核，前后端代码无死代码（client.ts 全部 7 个导出均有引用，后端 13 个 Java 类全部在用，无 TODO/FIXME/注释残留大块旧代码）；主要问题是文档与三张附加材料图停留在 09-06 版本，未同步 09-08 P3 改造。
+
+- **端口文档残留**：CLAUDE.md（3 处）与 `docs/runbook.md` 仍写 3100，同步为 3101（代码侧 application.yml / .env.example / vite.config.ts / compliance-smoke.ps1 早已是 3101）。CHANGES.md 与 e2e 证据文档中的 3100 为历史记录，保留不动。
+- **CLAUDE.md 结构补齐**：目录结构补入 09-08 新增的 5 个 Java 类（ApiErrors / ComplianceRuleLibrary / WhiteBackgroundSanitizer / CompositeCompareRenderer / DimensionGuideRenderer）与前端 4 个组件（DetailWorkbench / DetailPages / ComplianceIssues / ImageLightbox）；修复回流描述由「白底图重试一次、其他图仅建议」更正为「各图类最多 2 轮自动修复（参考图 [当前图, P3]），白底图另有文生图重制兜底」（与 ImagePipelineService 实际行为一致）。
+- **附加材料三图更新**（架构图 / 业务流程图 / 产品原型，均从 2026-09-06 版升至 2026-09-09）：质检描述由「白底图视觉质检」更新为「全五图质检 + P3 商品本体一致性检验（参考图与待检图一次视觉调用双结论）」；五图生成补充「白底/对比图确定性像素直出（0% 模型重绘）」；质检回流更新为「修复重生成（当前图 + P3 双参考）」；产品原型五图槽位质检标记由「白底通过/其余 —」更新为全图质检结论（对应 qa-scope=all 默认）。
+- **提交内容与 README/architecture.md 口径同步**：市场广告法 09-08 起退出判定（仅知识库展示）同步到提交内容 3.2/4.1、README 角色表、architecture.md 规则库段落；提交内容「已知限制」更正 qa-scope 默认 all（原文误写默认 white）；补 09-08 实测数据（5/5 首轮通过 132 秒）；提交物清单 GitCode 地址由 TODO 填为 https://gitcode.com/2502_94242477/OneLaunch.git。
+- **本地清理**：删除根目录垃圾日志 debug.log、hs_err_pid27800.log（均未入库）。
+- **验证**：`mvn test` 30/30 通过（BUILD SUCCESS）；前端 `tsc + vite build` 通过。
+- **事故警示复现**：并行编辑同一 HTML 文件的 4 个 Edit 中前 3 个被静默丢弃（与 2026-09-08 事故同模式），已串行重做并以 grep 验证——同文件编辑必须严格串行。
+
 ## 2026-09-08（十一）：五图验收 5/5 一次性通过——白底图/对比图确定性直出 + 详情页全英文化
 
 用户要求：自己跑一遍流水线验收图片是否符合规范；跨境电商详情页必须英文。经三轮真实网关迭代验收，最终 **5/5 全部一次性通过（2 分 12 秒）**，详情页全英文输出（HAS_CHINESE_CONTENT: False）。
