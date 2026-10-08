@@ -1,55 +1,163 @@
-# OneLaunch 运维手册
+# OneLaunch 运行与维护指南
 
-## 启动
+所有命令默认在仓库根目录执行。前端与后端是两个独立进程，开发时分别启动。
+
+## 环境准备
+
+需要 Node.js 20+、npm 10+、JDK 25 和 Maven，并配置好 Java 和 Maven 的命令路径。
 
 ```powershell
-npm install
-mvn -f apps/server/pom.xml spring-boot:run   # 或 npm run dev:server
+node --version
+npm --version
+java --version
+mvn --version
+npm ci
+if (!(Test-Path apps/server/.env)) {
+    Copy-Item apps/server/.env.example apps/server/.env
+}
+```
+
+在 `apps/server/.env` 填写主网关密钥。不要覆盖已有环境配置，也不要将真实密钥提交到仓库。
+
+## 服务配置
+
+配置定义在 `apps/server/src/main/resources/application.yml`，支持进程环境变量以及工作目录下的 `.env`、`apps/server/.env` 属性文件。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `PORT` | `3101` | 后端端口 |
+| `SERVER_ADDRESS` | `127.0.0.1` | 后端监听地址 |
+| `MODEL_ROUTER_BASE_URL` | `https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1` | 主模型网关 |
+| `MODEL_ROUTER_API_KEY` | 空 | 主网关密钥 |
+| `MODEL_ROUTER_TEXT_MODEL` | `qwen3.7-max` | 文字画像、润色与详情页 |
+| `MODEL_ROUTER_IMAGE_MODEL` | `wan2.7-image-pro` | 文生图 |
+| `MODEL_ROUTER_EDIT_MODEL` | `qwen-image-2.0` | 参考图生成与图片编辑 |
+| `MODEL_ROUTER_VISION_MODEL` | `qwen3.6-plus` | 视觉检查与参考图描述 |
+| `MODEL_ROUTER_TIMEOUT_SECONDS` | `120` | 单次 HTTP 读取超时秒数，连接超时为 10 秒 |
+| `MODEL_ROUTER_QA_SCOPE` | `all` | `all` 全图检查；`white` 白底专用检查 |
+| `MODEL_ROUTER_EDIT_BASE_URL` | 空 | 可选编辑诊断网关 |
+| `MODEL_ROUTER_EDIT_API_KEY` | 空 | 可选编辑网关密钥 |
+| `MODEL_ROUTER_EDIT_API_STYLE` | `chat` | 自定义编辑协议，可选 `openai-images` |
+
+`white` 模式只检查白底图，不等同于全图路径的市场规则和 P3 商品一致性检查。
+
+可选编辑网关配置完成后，请求还需传入 `editGateway=custom` 才会使用它；默认请求仍走主网关。自定义网关主机要求为可解析的公网 HTTP(S) 地址，地址与密钥仅在服务端使用。编辑网关密钥留空时会沿用主网关密钥，连接不同提供方时应显式填写对应凭证。图生图以外的文字、视觉及文生图调用继续使用主网关。
+
+### 本地预检与修复
+
+`application.yml` 中的 `quality-policy` 提供：
+
+| 配置项 | 默认值 | 说明 |
+|---|---|---|
+| `precheck.blur-variance` | `50.0` | 拉普拉斯方差低于阈值时提示模糊 |
+| `precheck.noise-mad` | `20.0` | 中值残差高于阈值时提示重度噪点 |
+| `precheck.scene-border-std` | `8.0` | 场景边缘过于均匀时提示缺少场景 |
+| `precheck.skin-ratio` | `0.02` | 模特区域肤色比例启发式阈值 |
+| `repair.max-attempts` | `2` | 自动修复轮数 |
+| `repair.min-severity` | `高` | 视觉问题触发修复的最低严重度 |
+
+调整阈值应通过实际图片复核误报。规则文件在启动时读取，修改规则或应用配置后需要重新构建或重启相应服务。
+
+## 开发启动
+
+终端一：
+
+```powershell
+npm run dev:server
+```
+
+终端二：
+
+```powershell
 npm run dev:web
 ```
 
-默认前端端口为 5173，后端端口由 `apps/server/.env` 的 `PORT` 控制，当前为 3101。
+默认打开 `http://localhost:5173`。前端开发代理在 `apps/web/vite.config.ts` 中将 `/api` 转发到 `http://localhost:3101`。后端改端口时，需要同步修改代理目标并重启前端。
 
-## 冒烟检查
+前端 5173 被占用时可能改用其他端口，以 Vite 终端输出为准。
 
-默认 `MODEL_ROUTER_QA_SCOPE=all`，五图均做合规检测并核对原始资料；已有环境若显式设置为 `white`，需改为 `all` 后重启。尺寸图支持明确的“宽38cm、高30cm、厚12cm”等带单位资料，没有资料则显示未提供；示例中的尺寸是演示设定。真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`。
+## 连通性与验证
 
 ```powershell
-Invoke-WebRequest http://localhost:3101/api/health
+Invoke-RestMethod http://localhost:3101/api/health
+Invoke-RestMethod http://localhost:3101/api/compliance-rules
 Invoke-WebRequest http://localhost:5173/
-npm run build        # web: tsc + vite build；server: Maven package
 ```
 
-## 常见故障
-
-- AI 代理运行环境若出现 `Unable to establish loopback connection`：这是本机 JVM 临时 Unix Domain Socket 连接限制，非商品图业务缺陷。2026-09-06 实测仅设置 `preferIPv4Stack` 与普通 `java.io.tmpdir` 不足；指定实际存在的 D 盘 `jdk.net.unixdomain.tmpdir` 后服务启动成功。宿主普通 shell 先直接启动，只有复现该错误时才采用下例，不修改全局环境变量或网关协议。
+健康接口只验证应用响应，规则接口不调用模型。`GET /api/models` 会访问网关；返回默认列表时仍应检查 `error` 和 `editError`。
 
 ```powershell
-New-Item -ItemType Directory -Force D:\codex-content\java-sockets | Out-Null
-$env:JAVA_TOOL_OPTIONS = '-Djava.net.preferIPv4Stack=true -Djdk.net.unixdomain.tmpdir=D:\codex-content\java-sockets'
-npm run dev:server
-# 服务结束后：Remove-Item Env:JAVA_TOOL_OPTIONS
+npm run build --workspace apps/web
+mvn -B -f apps/server/pom.xml test
+npm run build
 ```
 
-- `401`：检查 `MODEL_ROUTER_API_KEY` 是否存在且未过期。
-- `403/404`：确认使用 Token Plan 专属基地址，不要改成通用 DashScope 地址。
-- `model_not_found`：用 `GET /v1/models` 核对 Token Plan 实际可用模型名（不带 `qwen/` 前缀），并用 `MODEL_ROUTER_*_MODEL` 环境变量覆盖。
-- 图片生成超时：检查网络和套餐额度；后端会返回可读的超时错误（读取超时默认 120s，可用 `MODEL_ROUTER_TIMEOUT_SECONDS` 调整）。
-- 端口被占用：更改 `PORT`，并同步 `apps/web/vite.config.ts` 的代理端口。
+第一条执行前端类型检查和构建，第二条运行后端测试，第三条构建前端并打包后端，第三条会跳过后端测试。
 
-## 安全
+真实图片冒烟脚本位于 `apps/server/scripts/compliance-smoke.ps1`，会调用生成、合规检查和本地化接口并消耗模型额度。执行前需启动后端、配置有效密钥，并核对脚本中的端口和模型：
 
-`.env`、API Key、日志、`target/` 构建产物与 `.mvn-repo/` 本地仓库均不应提交仓库（已列入 `.gitignore`）。不要在终端输出或截图中暴露密钥。
+```powershell
+powershell -File apps/server/scripts/compliance-smoke.ps1
+```
 
-## 图片接口故障排查
+单元与回归测试主要使用测试替身隔离模型调用，不能代替真实网关和图片质量验证。
 
-- `url error`：Token Plan 的 `/images/generations` 不可用。本项目全部图片能力改走 `/chat/completions` 多模态调用（见 `ModelRouterImageClient.java`），该错误不应再出现；若网关未来放开该端点，可再评估切换。
-- 异步 403：Token Plan Key 不支持异步调用，本地化接口为同步图生图，无需轮询。
-- 图文混合 content 报 400：图片生成/编辑模型必须用 `{type:"image", image:url}` 扁平字段；视觉理解模型（`ModelRouterVisionClient.java`，白底图质检）相反必须用 OpenAI 嵌套 `{type:"image_url", image_url:{url}}` 格式，并建议 `"enable_thinking": false`。
-- 视觉质检报 `must be larger than 10`：视觉理解要求图片宽高大于 10px（1×1 测试图会触发）。
-- 白底图反复判"背景不纯白/高噪点"、修复不收敛：检测端已内置白底判定容差（各 RGB 通道 ≥245 且均匀干净即合规，轻微压缩噪点不算违规），正常不应反复失败；若仍出现，先确认图片确无可见场景元素/明显阴影（属真实违规），再检查是否被改为严格 RGB 255 判定。
-- 指定尺寸不生效：网关忽略 `size` 参数（实测），投放画幅由前端单图工作台按 1:1 / 3:2 / 2:3 居中裁切（依赖同源代理 `GET /api/image-proxy`）。
+## 构建与部署
 
-## 清理
+构建产物：
 
-Vite 缓存和评审截图均为可再生文件，已从工作区移除；`.impeccable` 配置、源码、参赛附加材料和 `ModelRouter_API.docx` 原始资料保留。旧版 Node/Express 后端遗留（`src/*.ts`、`package.json`、`tsconfig.json`）与运行日志已删除，后端为纯 Maven 工程。
+| 路径 | 用途 |
+|---|---|
+| `apps/web/dist/` | 前端静态站点 |
+| `apps/server/target/onelaunch-server-0.2.0.jar` | 可执行后端 JAR |
+
+从仓库根目录启动打包后的后端：
+
+```powershell
+java -jar apps/server/target/onelaunch-server-0.2.0.jar
+```
+
+部署到独立目录时，提供进程环境变量或该工作目录的 `.env` 文件。后端默认仅监听本机；同机反向代理可转发到 `127.0.0.1:3101`。
+
+静态服务托管 `apps/web/dist/`，并将同域 `/api` 转发到后端。SSE 路径需要及时转发响应块并允许长连接；不能把 Vite 的开发代理配置当作生产环境配置。后端 JAR 不包含前端静态页面。
+
+当前 API 没有账号鉴权和配额管理，公网部署需要在入口提供相应访问控制。任务状态没有持久化，进程重启或页面刷新后无法恢复原任务。
+
+## 常见问题
+
+| 现象 | 检查方法 |
+|---|---|
+| 前端接口连接失败 | 核对后端是否启动、端口和 Vite 代理目标是否一致 |
+| 网关 401 | 核对服务端密钥是否有效，不在日志中输出密钥 |
+| 网关 403 / 404 | 核对网关基地址、模型权限与套餐能力 |
+| 模型不存在 | 查看模型目录及错误字段，再核对配置的模型 ID |
+| 模型目录非空但生成失败 | 目录可能已回退为默认模型，检查 `error` 字段 |
+| 图片请求超时 | 核对图片源能否被网关访问，检查网络、额度和读取超时 |
+| 编辑请求格式错误 | 主网关编辑使用扁平 `image`；视觉使用嵌套 `image_url`；自定义网关还需匹配协议 |
+| 自定义编辑网关不可用 | 核对公网地址、服务端配置、模型目录和请求路由标志 |
+| 生成成功但显示待复检 | 视觉调用或解析失败，应按错误信息重试检查 |
+| 尺寸文字错误 | 核对原始尺寸资料；单图工具使用模型，不能直接套用流水线本地排版结论 |
+| 白底反复失败 | 查看实际背景、预检结果和视觉问题；保留近白容差，避免只按 RGB 255 判断 |
+| 详情页还在生成 | `compliance_complete` 仅表示图片检查结束，完整流程以 `done` 为准 |
+| 图片链接失效 | 网关 URL 可能过期，下载保存结果或重新生成 |
+
+曾在特定 Windows JVM 环境中出现 `Unable to establish loopback connection`，历史验证通过指定可用的 Unix Domain Socket 临时目录解决。仅复现该错误时在当前终端临时设置：
+
+```powershell
+$socketDir = Join-Path (Get-Location) '.tmp/java-sockets'
+New-Item -ItemType Directory -Force $socketDir | Out-Null
+$previousJavaOptions = $env:JAVA_TOOL_OPTIONS
+try {
+    $env:JAVA_TOOL_OPTIONS = ($previousJavaOptions + ' -Djava.net.preferIPv4Stack=true -Djdk.net.unixdomain.tmpdir="' + $socketDir + '"').Trim()
+    npm run dev:server
+}
+finally {
+    $env:JAVA_TOOL_OPTIONS = $previousJavaOptions
+}
+```
+
+## 文件管理
+
+源码和规则文件纳入 Git。`.env`、依赖目录、构建产物、日志和本地工具缓存由 `.gitignore` 排除。
+
+保存问题证据时记录时间、接口、模型、输入条件和响应状态；不要记录密钥或可用的带签名图片地址。历史单商品验证见 [验证记录](e2e-evidence-2026-09-06.md)。

@@ -1,106 +1,225 @@
 # OneLaunch API 接入指南
 
-## 本地服务
+后端默认地址为 `http://localhost:3101`，所有业务接口以 `/api` 开头。JSON 请求使用 `Content-Type: application/json`。模型密钥由服务端环境配置提供，客户端请求不携带模型网关密钥。
 
-- 前端开发服务器：`http://localhost:5173`
-- 后端 API：`http://localhost:3101`（Java 25 + Spring Boot 4.0.6 + Spring AI 2.0.1）
-- 健康检查：`GET /api/health`
+当前应用 API 没有账号鉴权层；默认后端仅监听本机。对外部署方式见 [运行指南](runbook.md)。
 
-后端通过 `apps/server/.env` 读取 `MODEL_ROUTER_API_KEY`、`MODEL_ROUTER_BASE_URL`、模型 ID 与 `PORT`。密钥只放环境变量，不要写入源码或文档。
+## 接口总览
 
-## 业务接口
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/health` | 服务健康 |
+| GET | `/api/models` | 模型分组、默认模型和平台市场映射 |
+| GET | `/api/compliance-rules` | 平台和市场规则快照 |
+| GET | `/api/image-proxy` | 图片读取与下载 |
+| POST | `/api/polish` | 卖点或关键词润色 |
+| POST | `/api/images/set` | 同步五图流水线 |
+| POST | `/api/images/set/stream` | SSE 五图流水线 |
+| POST | `/api/images/single` | 单图生成或编辑 |
+| POST | `/api/images/localize` | 图片本地化 |
+| POST | `/api/compliance-check` | 独立图片检查 |
+| POST | `/api/detail-page` | 独立详情页生成 |
 
-### 生成五图与详情页（同步）
+## 通用字段
 
-`POST /api/images/set`
+图类取值为 `白底图`、`场景图`、`模特图`、`对比图`、`尺寸图`。内置平台为 `Amazon`、`TikTok Shop`、`Temu`、`Shopee`；市场为 `US`、`UK`、`欧盟`、`日本`、`东南亚`。
+
+图片输入支持可访问的 HTTP(S) URL 或完整的 `data:image/...;base64,...`。返回的 `GeneratedImage` 包含 `type`、`platform`、`size`、`url`，其中 `url` 也可能是本地渲染结果的 data URL。
+
+`imageModel`、`editModel`、`textModel`、`visionModel` 用于五图请求中的模型覆盖；单图、本地化和润色接口使用各自的 `model` 字段。
+
+## 五图与详情页
+
+### 同步请求
+
+`POST /api/images/set` 接收：
 
 ```json
 {
-  "productName": "轻量通勤托特包",
-  "sellingPoints": "防泼水、可装 15 寸笔记本、自重 380g",
-  "platforms": ["Amazon", "TikTok Shop"],
+  "productName": "通勤托特包",
+  "sellingPoints": "填写真实的材质、用途和尺寸资料",
+  "platforms": ["Amazon"],
   "detailTone": "专业可信",
-  "referenceImages": ["https://example.com/product.jpg", "data:image/jpeg;base64,..."],
-  "imageModel": "wan2.7-image-pro",
-  "editModel": "qwen-image-2.0",
-  "textModel": "qwen3.7-max"
+  "referenceImages": [],
+  "market": "",
+  "editGateway": "default"
 }
 ```
 
-返回 `steps`、`profile`、`images`、`qa` 与 `detailPages`。**每个平台都生成完整五图**，提示词按「平台 × 图类」差异化（每平台独有风格与合规规则，多平台不雷同）；图片调用次数 = 平台数 × 5，白底图每平台各质检一次。`detailTone` 可选（专业可信 / 种草转化 / 简洁高端），影响详情页草稿的标题与文案基调。
+| 字段 | 规则 |
+|---|---|
+| `productName` | 与非空 `referenceImages` 至少提供一项 |
+| `sellingPoints` | 可选商品事实和尺寸资料 |
+| `platforms` | 可选；空列表或省略时使用 Amazon，元素不能为空 |
+| `detailTone` | 可选；前端提供专业可信、种草转化、简洁高端 |
+| `referenceImages` | 可选，最多 6 张，支持图片 URL 和 data URL |
+| `market` | 可选；空值按平台映射，显式值覆盖所有所选平台 |
+| `imageModel` / `editModel` / `textModel` / `visionModel` | 可选模型覆盖 |
+| `editGateway` | 仅 `custom` 选择服务端预配置的编辑网关，其他值使用主网关 |
 
-- `referenceImages`（可选，最多 6 张）：公网 URL 或本地图 base64 data URL（实测网关支持，且单次可传多张）。有参考图时五图走图生图，与商品外观保持一致。
-- `imageModel` / `editModel` / `textModel`（可选）：覆盖默认模型 ID。
-- 校验：`productName` 与 `referenceImages` 至少提供一个；有参考图时 `sellingPoints` 可留空。
+默认平台映射：Amazon → US，TikTok Shop / Shopee → 东南亚，Temu → 欧盟。
 
-### 生成五图与详情页（SSE 流式，前端主流程）
+响应为 `ImagePipelineResponse`：
 
-`POST /api/images/set/stream`，请求体同上。响应为 `text/event-stream`，逐条推送：
+| 字段 | 类型与内容 |
+|---|---|
+| `steps` | `{step, status, detail}[]`，各处理步骤和错误信息 |
+| `profile` | 商品画像文字，可能为空 |
+| `images` | `GeneratedImage[]`，成功生成的图片 |
+| `qa` | `QaRecord[]`，按审核范围执行后的记录 |
+| `detailPages` | `DetailPage[]`，逐平台详情页草稿 |
 
-| 事件 | 负载 | 说明 |
+每个平台处理五个槽位；部分图片失败时，响应图片数可能不足五张。尺寸排版需要可读取的商品图片：使用原始参考图或通过质检的白底图，没有可用源图时该槽位会失败。HTTP 200 或流程完成不代表每张图片生成成功或审核通过。
+
+### SSE 请求
+
+`POST /api/images/set/stream` 接收相同 JSON，返回 `text/event-stream`。客户端需要读取 POST 响应流，不能直接使用只发送 GET 的原生 `EventSource` 连接此接口。
+
+| 事件 | 负载 | 含义 |
 |---|---|---|
-| `log` | `{text}` | 思考过程文字（阶段进度、成功/失败摘要） |
-| `profile` | `{text}` | 商品画像文本 |
-| `image_start` | `{type, platform, prompt}` | 单图开始生成（含本次提示词） |
-| `image_done` | `{type, platform, size, url, prompt}` | 单图完成 |
-| `image_fail` | `{type, platform, error}` | 单图失败（含网关错误信息） |
-| `qa` | 单条 `QaRecord` | 单图审核完成，含 platform；同平台同图类复检覆盖前一次记录 |
-| `done` | 完整 `ImagePipelineResponse` | 任务结束 |
-| `fatal` | `{error}` | 流程级异常 |
+| `log` | `{text}` | 处理阶段与结果日志 |
+| `profile` | `{text}` | 文字商品画像 |
+| `image_start` | `{type, platform, prompt}` | 单图开始 |
+| `image_done` | `{type, platform, size, url, prompt}` | 单图完成或被修复图替换 |
+| `image_fail` | `{type, platform, error}` | 单图生成失败 |
+| `qa` | `QaRecord` | 该图片最终检查结果 |
+| `compliance_complete` | `{images, qa}` | 图片生产与检查结束，详情页尚可能运行 |
+| `done` | `ImagePipelineResponse` | 含详情页的完整结果 |
+| `fatal` | `{error}` | 流程级失败 |
 
-质检记录 `qa[]`：`type/url/passed/comment` 与 `issues: string[]` 保持兼容。`status` 为 `passed`、`failed` 或 `manual_review`；人工复检时 `passed=false`。`model` 为审核模型，`market/platform` 标记归属，`complianceIssues` 为 `{dimension,severity,detail,suggestion}[]`，`suggestedPrompt` 为可直接执行的中文修复指令（祈使句：「保持商品本体（形状、结构、颜色、材质）不变」+ 逐项画面级修改动作，可直接复制用于重生成或图生图修复）。默认 `MODEL_ROUTER_QA_SCOPE=all`，逐图审核并对照原始资料；`white` 仅每平台一次白底兼容质检，不含市场广告法。模型生成的四类图审核未通过时最多修复一次；尺寸图使用确定性文字排版，不交给模型重画数字。SSE 仅推送 `qa` 最终结果（初检在服务端内部决定是否自动修复，不单独发事件；同平台同图类复检覆盖前一次记录）。图片 URL 可能是 PNG data URL，客户端应直接显示和下载，不能将其拼入代理查询字符串。
+以“平台 + 图类”作为槽位键处理覆盖更新。修复会重复发送 `image_done`，不能把它累计为新图片。服务端发送的日志是流程说明，不是模型内部思维内容。
 
-### 模型清单
+### 审核记录
 
-`GET /api/models`：实时拉取网关 `GET /v1/models` 并按能力分组：`textToImage` / `imageToImage` / `text` / `vision` / `other`，每项 `{id, verified}`；`visionAvailable` 取决于清单中是否存在实测具备视觉理解能力的模型（当前为 `qwen3.6-plus` / `qwen3.6-flash`，`/v1/models` 清单本身不体现视觉能力）。
+`QaRecord` 包含：
 
-### 图片代理
+| 字段 | 说明 |
+|---|---|
+| `type` / `platform` / `market` / `url` | 检查对象及归属 |
+| `status` | `passed`、`failed`、`manual_review` |
+| `passed` | 布尔结果，人工复检时为 false |
+| `comment` | 检查说明 |
+| `issues` | 兼容文本问题列表，人工复检时可能为 null |
+| `complianceIssues` | 结构化问题列表 |
+| `suggestedPrompt` | 可用于修复的指令，可能为空或 null |
+| `model` | 检查模型或“本地预检”；人工复检时可能为 null |
+| `passReasons` | 检查通过依据 |
 
-`GET /api/image-proxy?url=<https 图片地址>&download=false`：同源拉取网关返回的图片；`download=true` 时带 `Content-Disposition: attachment`。仅允许 http(s) 地址。前端单图工作台的画幅裁切（canvas 需同源像素）与下载原图依赖此端点。
+结构化问题为 `{dimension, severity, detail, suggestion}`。维度包括平台规范、市场规范、商品一致性、文字准确性、其他；严重度为高、中、低。
 
-### 单图重生成 / 参考图生成 / 基于已生成图修改
+默认 `all` 检查五类图片，并在有原始参考图时检查商品一致性。`white` 只运行白底专用检查。预检失败或达到严重度条件的问题可触发修复，默认最多 2 轮；尺寸图不进入模型自动修复，白底图另有一次文生图兜底。
 
-`POST /api/images/single`，同步返回 `{ image: GeneratedImage }`。三分支：
+## 单图生成与修改
 
-- 仅 `type` + `prompt`（可选 `model`）：文生图重生成，自动注入图类硬性要求与目标平台规范；
-- + `referenceImages`：参考图生成（图生图，默认走 `editModel`），附加参考图商品一致性约束；
-- + `sourceUrl`：基于已生成图修改（图生图，源图 + 指令），用户指令为唯一编辑任务并附商品保持约束——指令要求的改动优先执行，未提及内容保持源图原样。
+`POST /api/images/single`：
 
-### 图片本地化
+```json
+{
+  "type": "场景图",
+  "prompt": "在自然光下展示商品的日常使用场景",
+  "platform": "Amazon",
+  "referenceImages": []
+}
+```
 
-`POST /api/images/localize` 支持 `sourceUrl`、`targetMarket`、`instruction`、`aspects`、`targetLanguage`、`modelProfile`，返回 `{ image, appliedAspects, note, prompt }`。
+`type` 和非空 `prompt` 必填，`platform` 默认 Amazon。其他可选字段为 `referenceImages`、`sourceUrl`、`model`、`editGateway`。
 
-aspects 省略默认 `["scene"]`，显式空数组或非法值返回 400。目标市场默认 US；目标语言未指定时日本→日语，其余→英语。instruction 为可选附加要求，text 生效返回文字人工复核 note，modelProfile 仅在 model 生效时使用；sourceUrl 必须是 http(s) 或图片 data URL，model 可覆盖默认编辑模型。
+处理优先级：
 
-`POST /api/compliance-check` 请求 `{imageUrl,imageType?,platform,market,visionModel?,productFacts?,referenceImageUrl?}`，返回 `passed`、`summary`、`issues`、`complianceIssues`、`suggestedPrompt`、`model`；图片支持公网 URL 或 `data:image/...;base64`，缺少必要参数返回可读 400。
+1. 有 `sourceUrl`：以源图和用户指令进行编辑。
+2. 否则有参考图：按图类与平台要求进行参考图生成。
+3. 否则：使用文生图模型。
 
-imageType 省略默认白底图；平台与市场必填。`referenceImageUrl` 为商品原始参考图（P3）：传入时与待检图合并一次视觉调用，同时输出「平台规范与图类要求」和「商品本体一致性」（形状/结构/颜色/材质/比例/固有印刷一致、无新增装饰、无部件缺失；背景差异不算问题）两项结论；不传时仅平台规范与图类要求。检测范围仅平台相关——不含商标授权、广告法与市场法规；complianceIssues 的 dimension 取值：平台规范/商品一致性/文字准确性/其他。结构化问题位于 complianceIssues，issues 是兼容文本列表；summary 含“AI 辅助审查，不构成法律意见”。白底判定含容差：背景各 RGB 通道不低于 245 且均匀干净即判纯白合规，轻微压缩噪点与 ±10 白色偏差不构成未通过；只有可辨认场景元素、道具、明显阴影或成片杂色纹理才判背景违规。独立检测失败返回可读错误供用户重试，流水线检测失败则输出人工复检记录并继续。
+返回 `{image: GeneratedImage}`。该接口本身不返回质检结果；项目的单图前端在生成后另行调用 `/api/compliance-check`。图片模型返回空结果时，`image` 可能为 null，客户端应处理没有图片的情况。
 
-### AI 详情页自动化（独立，不依赖五图流水线）
+## 图片本地化
 
-`POST /api/detail-page`，参数为 `productName`、`sellingPoints`（至少其一）、`platforms`（多选，默认 Amazon）、`detailTone`（可选）、`generatedTypes`（可选，已有生成图的类型集合，供 AI 引用配图）、`textModel`（可选）。返回 `{ detailPages: DetailPage[] }`，结构同流水线 `done` 事件中的 `detailPages`。内部先构建商品画像（失败降级纯文本拼接），再逐平台复用流水线的 AI 编排（失败降级模板）；供侧栏「AI 详情页」工作台直接调用——无需先跑五图即可输入卖点生成详情页，已有生成图时模块自动引用配图。
+`POST /api/images/localize` 需要 `sourceUrl`。其他字段：
 
-## Model Router
+| 字段 | 说明 |
+|---|---|
+| `targetMarket` | 默认 US |
+| `aspects` | `scene`、`text`、`model` 的组合；省略默认 scene，空数组或非法值返回 400 |
+| `targetLanguage` | text 维度的语言；未填时日本使用日语，其余使用英语 |
+| `modelProfile` | model 维度的人物要求 |
+| `instruction` | 附加编辑指令 |
+| `model` / `editGateway` | 编辑模型与网关选择 |
 
-请求基地址使用 Token Plan 专属地址：
-`https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
+返回 `{image, appliedAspects, note, prompt}`。`text` 生效时 `note` 包含文字复核提醒。模型未返回图片时可能没有响应内容，客户端应先检查结果再读取字段。
 
-服务端统一调用 `POST /chat/completions`，自动附加 `Authorization: Bearer <MODEL_ROUTER_API_KEY>`，并提供超时与错误解析：
+## 独立图片检查
 
-| 能力 | 默认模型 | 可选模型（2026-08-30 实测） | content 格式 | 响应取值 |
-|---|---|---|---|---|
-| 文本对话（商品画像） | `qwen3.7-max` | qwen3.8-max、deepseek/glm/kimi 等 16 个文本模型 | 纯字符串 | `choices[0].message.content` |
-| 文生图（五图生成） | `wan2.7-image-pro` | `wan2.7-image` | `[{type:"text", text}]` | `output.choices[0].message.content[].image` |
-| 图生图（参考图/编辑/本地化） | `qwen-image-2.0` | `qwen-image-2.0-pro` | `[{type:"image", image:url 或 base64}, ...]` | 同上 |
-| 视觉理解（白底图质检） | `qwen3.6-plus` | `qwen3.6-flash` | `[{type:"image_url", image_url:{url:url 或 base64}}, {type:"text", text}]`（嵌套格式） | `choices[0].message.content`（`"enable_thinking": false` 时为纯答案） |
+`POST /api/compliance-check` 需要 `imageUrl`、`platform`、`market`。可选字段：
 
-封装位置：文本走 `TokenPlanChatModel`（Spring AI ChatModel 实现，支持按请求覆盖模型），图片走 `ModelRouterImageClient.java`，视觉质检走 `ModelRouterVisionClient.java`（模型限 126 清单内实测具备视觉能力者）。
+- `imageType`：默认白底图。
+- `visionModel`：覆盖视觉模型。
+- `productFacts`：原始商品资料。
+- `referenceImageUrl`：P3 原始商品图；传入时与待检图一起做本体一致性比较。
 
-## 已知限制（Token Plan 实测）
+响应包含 `passed`、`summary`、`issues`、`complianceIssues`、`suggestedPrompt`、`model`、`passReasons`。它与流水线的 `QaRecord` 不同，没有 `status` 字段，说明字段名为 `summary`。
 
-- `POST /images/generations` 返回 400 `url error`，不可用；
-- `X-DashScope-Async: enable` 异步调用被 403 拒绝，因此**没有异步任务接口**，本地化与参考图生成为同步图生图；
-- 图片**生成/编辑**模型的图片 part 必须用 `{type:"image", image:url}` 扁平字段（嵌套 `image_url` 返回 400）；**视觉理解模型相反**，必须用 `{type:"image_url", image_url:{url}}` 嵌套格式（URL 与 `data:image/...;base64` 均可，图片宽高须大于 10px）；图生图 `image` 字段单次可传多张（上限 6）；
-- Token Plan 模型清单（`GET /v1/models`，2026-08-30 实测 23 个）无 `vl` 字样模型，但文本档 `qwen3.6-plus` / `qwen3.6-flash`（126 清单内）实测为多模态视觉模型；`qwen3.7-max` 确认纯文本；白底图质检走 `qwen3.6-plus` 视觉质检，失败降级人工复检提示；
-- 图片尺寸由网关决定（文生图 2048×2048，图生图 1024×1024）；2026-08-30 复测：`chat/completions` 请求带 `size` 参数被网关静默忽略（仍返回默认尺寸），多平台投放画幅由前端单图工作台按 1:1 / 3:2 / 2:3 居中裁切输出。
+检查范围为图类与平台规范、市场规则中的可见要求，以及有参考图时的商品本体一致性。独立检查调用失败返回错误；流水线检查失败则生成 `manual_review` 记录继续执行。
 
+## 详情页
+
+`POST /api/detail-page`：
+
+```json
+{
+  "productName": "通勤托特包",
+  "sellingPoints": "填写商品的真实卖点",
+  "platforms": ["Amazon"],
+  "detailTone": "专业可信",
+  "generatedTypes": ["白底图", "场景图"]
+}
+```
+
+`productName` 与 `sellingPoints` 至少一项；`platforms` 省略或为空时使用 Amazon。`textModel` 可覆盖文本模型。`generatedTypes` 表示可引用的已有图类，不会由此接口生成图片。
+
+返回 `{detailPages: DetailPage[]}`。每个页面包含 `platform`、`title`、`subtitle`、`sellingPoints`、`sections`、`compliance`；每个 section 包含 `type`、`title`、`body`、`imageType`、`bullets`。
+
+模型提示词要求英文输出，失败时使用模板；模板可能保留输入卖点原文。配图是图类引用，客户端需要关联实际图片。
+
+## 文案润色
+
+`POST /api/polish`：
+
+```json
+{
+  "text": "日常通勤使用，分隔收纳，轻便",
+  "kind": "selling-points"
+}
+```
+
+`text` 必填且长度不超过 4000。`kind=selling-points` 用于分条卖点，`keywords` 用于单行关键词；`model` 可选。返回 `{text}`。
+
+## 模型目录与规则
+
+### 模型目录
+
+`GET /api/models` 返回：
+
+- 模型列表：`textToImage`、`imageToImage`、`text`、`vision`、`other`，列表项为 `{id, verified}`。
+- 编辑网关：`editToImage`、`editGateway`、`editError`。
+- 默认和状态：`defaults`、`visionAvailable`、`qaScope`、`error`。
+- 市场数据：`platformMarkets`、`markets`。
+
+主目录失败时回退到服务端默认模型并设置 `error`。自定义编辑目录失败单独设置 `editError`。`verified` 是代码内的标记，不是实时生成或鉴权测试；视觉列表按客户端内置能力名单筛选。
+
+### 规则快照
+
+`GET /api/compliance-rules` 返回 `{platforms, markets}`。每项为 `{key, label, sections}`，section 为 `{name, rules}`，rule 为 `{id, hard, text}`。`hard=true` 为硬性规则，false 为生成风格建议。
+
+## 健康与图片代理
+
+`GET /api/health` 返回 `{"ok":true,"service":"onelaunch-java-server"}`，只说明应用可响应，不验证模型网关。
+
+`GET /api/image-proxy?url=<编码后的HTTP图片地址>&download=false` 返回图片字节；`download=true` 添加附件下载头。data URL 应由客户端直接处理，不放入代理查询参数。代理失败返回 400 和文本说明。
+
+## 错误与接入建议
+
+参数校验错误通常返回 400，业务调用异常通常返回 500，响应形如 `{"error":"可读说明"}`。框架解析 JSON 失败、模型目录降级和图片代理使用各自的响应形式。SSE 建连后的异常通过 `fatal` 或单图事件报告。
+
+模型生成、编辑和检查会消耗网关额度。需要验证客户端连通性时先使用健康接口；真实业务验证应检查响应内容、图片和审核状态。
+
+主网关当前客户端使用同步 `/chat/completions`：文本传字符串，图片生成/编辑使用扁平 `image` part，视觉使用嵌套 `image_url` part。自定义编辑网关还支持 `openai-images` 格式。完整服务端配置见 [运行指南](runbook.md)。
